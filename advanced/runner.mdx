@@ -368,7 +368,7 @@ const result = await runner.run({
 The SDK provides a `toSchema` helper for creating tool schemas from Zod or TypeScript types:
 
 ```typescript
-import { toSchema } from 'dedalus-labs/runner';
+import { toSchema } from 'dedalus-labs/lib/runner';
 import { z } from 'zod';
 
 const weatherTool = {
@@ -449,7 +449,7 @@ Complete example with multiple features:
 ```typescript
 import { Dedalus, DedalusRunner } from 'dedalus-labs';
 import { z } from 'zod';
-import { toSchema } from 'dedalus-labs/runner';
+import { toSchema } from 'dedalus-labs/lib/runner';
 
 const client = new Dedalus({
   apiKey: process.env.DEDALUS_API_KEY,

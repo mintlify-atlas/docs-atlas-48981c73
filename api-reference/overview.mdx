@@ -16,7 +16,7 @@ npm install dedalus
 ## Quick Start
 
 ```typescript
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 const client = new Dedalus({
   apiKey: process.env.DEDALUS_API_KEY,
@@ -119,7 +119,7 @@ import {
   APIError,
   AuthenticationError,
   RateLimitError 
-} from 'dedalus';
+} from 'dedalus-labs';
 
 try {
   const completion = await client.chat.completions.create(params);
@@ -141,7 +141,7 @@ try {
 For advanced agent workflows with automatic tool execution:
 
 ```typescript
-import { DedalusRunner } from 'dedalus';
+import { DedalusRunner } from 'dedalus-labs';
 
 const runner = new DedalusRunner(client);
 const result = await runner.run({
@@ -157,7 +157,7 @@ const result = await runner.run({
 Helper functions for working with streams:
 
 ```typescript
-import { streamAsync, streamSync } from 'dedalus';
+import { streamAsync, streamSync } from 'dedalus-labs';
 
 const stream = await client.chat.completions.create({
   model: 'openai/gpt-4',

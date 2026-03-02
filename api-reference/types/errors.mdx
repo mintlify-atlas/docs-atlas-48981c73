@@ -184,7 +184,7 @@ export class InternalServerError extends APIError<number, Headers> {}
 ### Basic Error Handling
 
 ```typescript
-import { Dedalus, APIError, RateLimitError } from '@dedaluscloud/dedalus-api';
+import { Dedalus, APIError, RateLimitError } from 'dedalus-labs';
 
 const client = new Dedalus({ apiKey: 'your-api-key' });
 
@@ -211,7 +211,7 @@ import {
   AuthenticationError, 
   NotFoundError, 
   InternalServerError 
-} from '@dedaluscloud/dedalus-api';
+} from 'dedalus-labs';
 
 try {
   const model = await client.models.retrieve('model-id');
@@ -247,7 +247,7 @@ try {
 import { 
   APIConnectionError, 
   APIConnectionTimeoutError 
-} from '@dedaluscloud/dedalus-api';
+} from 'dedalus-labs';
 
 try {
   const response = await client.chat.completions.create(params);
@@ -288,7 +288,7 @@ Additional errors for streaming response parsing:
 import { 
   LengthFinishReasonError, 
   ContentFilterFinishReasonError 
-} from '@dedaluscloud/dedalus-api';
+} from 'dedalus-labs';
 ```
 
 <ResponseField name="LengthFinishReasonError" type="class">

@@ -12,7 +12,7 @@ Streaming allows you to receive chat completion responses incrementally as they 
 Enable streaming by setting `stream: true` in your request:
 
 ```typescript
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 const client = new Dedalus({
   apiKey: process.env.DEDALUS_API_KEY,
@@ -89,7 +89,7 @@ Dedalus provides helper functions for working with streams:
 Async iterator for streaming responses:
 
 ```typescript
-import { streamAsync } from 'dedalus';
+import { streamAsync } from 'dedalus-labs';
 
 const stream = await client.chat.completions.create({
   model: 'openai/gpt-4',
@@ -107,7 +107,7 @@ for await (const chunk of streamAsync(stream)) {
 Synchronous stream processing:
 
 ```typescript
-import { streamSync } from 'dedalus';
+import { streamSync } from 'dedalus-labs';
 
 const stream = await client.chat.completions.create({
   model: 'openai/gpt-4',
@@ -233,7 +233,7 @@ Integrate streaming into a React application:
 
 ```typescript
 import { useState } from 'react';
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 function ChatComponent() {
   const [response, setResponse] = useState('');
@@ -280,7 +280,7 @@ Implement SSE streaming in an Express server:
 
 ```typescript
 import express from 'express';
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 const app = express();
 const client = new Dedalus({
@@ -337,7 +337,7 @@ for await (const chunk of stream) {
 Handle errors during streaming:
 
 ```typescript
-import { APIError } from 'dedalus';
+import { APIError } from 'dedalus-labs';
 
 try {
   const stream = await client.chat.completions.create({
@@ -370,7 +370,7 @@ import type {
   ChoiceDelta,
   ChoiceDeltaToolCall,
   CompletionUsage,
-} from 'dedalus';
+} from 'dedalus-labs';
 
 // Stream response
 type StreamResponse = Stream<StreamChunk>;

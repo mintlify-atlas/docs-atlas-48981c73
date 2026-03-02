@@ -241,7 +241,7 @@ const data = JSON.parse(completion.choices[0].message.content);
 
 ```typescript
 import { z } from 'zod';
-import { toSchema } from 'dedalus-labs/runner';
+import { toSchema } from 'dedalus-labs/lib/runner';
 
 const schema = z.object({
   name: z.string(),

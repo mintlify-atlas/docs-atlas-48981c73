@@ -12,7 +12,7 @@ The Dedalus SDK supports two authentication methods: Bearer token authentication
 The primary authentication method uses a Bearer token in the `Authorization` header.
 
 ```typescript
-import { Dedalus } from 'dedalus';
+import { Dedalus } from 'dedalus-labs';
 
 const client = new Dedalus({
   apiKey: 'your-api-key'
@@ -182,7 +182,7 @@ Track API key usage and set up alerts for unusual activity.
 Authentication errors return an `AuthenticationError` (401 status code):
 
 ```typescript
-import { Dedalus } from 'dedalus';
+import { Dedalus } from 'dedalus-labs';
 
 const client = new Dedalus({ apiKey: 'invalid-key' });
 

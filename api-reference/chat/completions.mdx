@@ -11,7 +11,7 @@ The `client.chat.completions.create()` method generates model responses for conv
 ## Basic Usage
 
 ```typescript
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 const client = new Dedalus({
   apiKey: process.env.DEDALUS_API_KEY,
@@ -405,7 +405,7 @@ const completion = await client.chat.completions.create({
 ## Error Handling
 
 ```typescript
-import { APIError, RateLimitError, AuthenticationError } from 'dedalus';
+import { APIError, RateLimitError, AuthenticationError } from 'dedalus-labs';
 
 try {
   const completion = await client.chat.completions.create({

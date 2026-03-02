@@ -19,7 +19,7 @@ Dedalus supports:
 Define tools using the OpenAI function calling format:
 
 ```typescript
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 const client = new Dedalus({
   apiKey: process.env.DEDALUS_API_KEY,
@@ -435,7 +435,7 @@ if (message.tool_calls) {
 ### Weather API Integration
 
 ```typescript
-import Dedalus from 'dedalus';
+import Dedalus from 'dedalus-labs';
 
 const client = new Dedalus({
   apiKey: process.env.DEDALUS_API_KEY,
@@ -578,7 +578,7 @@ import type {
   ChatCompletionToolMessageParam,
   ToolChoice,
   FunctionDefinition,
-} from 'dedalus';
+} from 'dedalus-labs';
 
 // Define a tool
 const tool: ChatCompletionToolParam = {

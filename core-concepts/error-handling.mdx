@@ -257,7 +257,7 @@ static generate(
 ### Basic Try-Catch
 
 ```typescript
-import { Dedalus } from 'dedalus';
+import { Dedalus } from 'dedalus-labs';
 
 const client = new Dedalus({ apiKey: 'your-api-key' });
 
@@ -361,7 +361,7 @@ try {
 ### Parsing Error Handling
 
 ```typescript
-import { LengthFinishReasonError, ContentFilterFinishReasonError } from 'dedalus';
+import { LengthFinishReasonError, ContentFilterFinishReasonError } from 'dedalus-labs';
 
 try {
   const completion = await client.chat.completions.create({...});
@@ -399,7 +399,7 @@ static UnprocessableEntityError = Errors.UnprocessableEntityError;
 Usage:
 
 ```typescript
-import { Dedalus } from 'dedalus';
+import { Dedalus } from 'dedalus-labs';
 
 if (error instanceof Dedalus.RateLimitError) {
   // Handle rate limit
