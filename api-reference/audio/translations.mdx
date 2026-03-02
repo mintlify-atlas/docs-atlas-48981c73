@@ -1,0 +1,152 @@
+---
+title: 'Create Translation'
+api: 'POST /v1/audio/translations'
+---
+
+Translates audio files in any supported language to English text using OpenAI's Whisper model. Supports the same audio formats as transcription. Maximum file size is 25 MB.
+
+## Method
+
+```typescript
+client.audio.translations.create(params)
+```
+
+## Request Parameters
+
+<ParamField body="file" type="File" required>
+  The audio file object (not file name) to translate, in one of these formats: mp3, mp4, mpeg, mpga, m4a, wav, or webm.
+  
+  Maximum file size: 25 MB
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  Model ID to use for translation (e.g., `openai/whisper-1`).
+</ParamField>
+
+<ParamField body="prompt" type="string">
+  An optional text to guide the model's style or continue a previous audio segment. The prompt should be in English.
+</ParamField>
+
+<ParamField body="response_format" type="string">
+  The format of the transcript output. Options:
+  - `json` - JSON response with text only
+  - `text` - Plain text
+  - `srt` - SubRip subtitle format
+  - `verbose_json` - JSON with timestamps, segments, and metadata
+  - `vtt` - WebVTT subtitle format
+  
+  Default: `json`
+</ParamField>
+
+<ParamField body="temperature" type="number">
+  The sampling temperature, between 0 and 1. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. If set to 0, the model will use log probability to automatically increase the temperature until certain thresholds are hit.
+  
+  Default: `0`
+</ParamField>
+
+## Response
+
+<ResponseField name="text" type="string" required>
+  The translated text in English.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  The language of the output translation (always `english`) (verbose_json only).
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  The duration of the input audio in seconds (verbose_json only).
+</ResponseField>
+
+<ResponseField name="segments" type="array">
+  Segments of the translated text and their corresponding details (verbose_json only).
+  
+  <Expandable title="Segment Object">
+    <ResponseField name="id" type="number">
+      Unique identifier of the segment.
+    </ResponseField>
+    
+    <ResponseField name="text" type="string">
+      Text content of the segment.
+    </ResponseField>
+    
+    <ResponseField name="start" type="number">
+      Start time of the segment in seconds.
+    </ResponseField>
+    
+    <ResponseField name="end" type="number">
+      End time of the segment in seconds.
+    </ResponseField>
+    
+    <ResponseField name="tokens" type="array">
+      Array of token IDs for the text content.
+    </ResponseField>
+    
+    <ResponseField name="temperature" type="number">
+      Temperature parameter used for generating the segment.
+    </ResponseField>
+    
+    <ResponseField name="avg_logprob" type="number">
+      Average logprob of the segment. If the value is lower than -1, consider the logprobs failed.
+    </ResponseField>
+    
+    <ResponseField name="compression_ratio" type="number">
+      Compression ratio of the segment. If the value is greater than 2.4, consider the compression failed.
+    </ResponseField>
+    
+    <ResponseField name="no_speech_prob" type="number">
+      Probability of no speech in the segment. If the value is higher than 1.0 and the avg_logprob is below -1, consider this segment silent.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```typescript Basic Translation
+import fs from "fs";
+
+const translation = await client.audio.translations.create({
+  file: fs.createReadStream("german-audio.mp3"),
+  model: "openai/whisper-1",
+});
+
+console.log(translation.text);
+```
+
+```typescript Verbose JSON
+const translation = await client.audio.translations.create({
+  file: fs.createReadStream("french-audio.wav"),
+  model: "openai/whisper-1",
+  response_format: "verbose_json"
+});
+
+console.log(translation.text);
+console.log(translation.language); // "english"
+console.log(translation.duration);
+console.log(translation.segments);
+```
+
+```typescript With Prompt
+const translation = await client.audio.translations.create({
+  file: fs.createReadStream("spanish-interview.mp3"),
+  model: "openai/whisper-1",
+  prompt: "This is an interview about climate change and sustainability.",
+  temperature: 0.2
+});
+
+console.log(translation.text);
+```
+
+```typescript Text Format
+const text = await client.audio.translations.create({
+  file: fs.createReadStream("japanese-audio.m4a"),
+  model: "openai/whisper-1",
+  response_format: "text"
+});
+
+console.log(text); // Plain text string
+```
+
+</CodeGroup>

@@ -1,0 +1,199 @@
+---
+title: 'Authentication'
+description: 'API key authentication methods and security best practices'
+---
+
+The Dedalus SDK supports two authentication methods: Bearer token authentication and API key header authentication. You must provide at least one authentication method when creating a client.
+
+## Authentication Methods
+
+### Bearer Token Authentication
+
+The primary authentication method uses a Bearer token in the `Authorization` header.
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key'
+});
+```
+
+This sets the `Authorization` header to:
+```
+Authorization: Bearer your-api-key
+```
+
+### X-API-Key Header Authentication
+
+Alternatively, you can authenticate using the `X-API-Key` header:
+
+```typescript
+const client = new Dedalus({
+  xAPIKey: 'your-api-key'
+});
+```
+
+This sets the `X-API-Key` header to:
+```
+X-API-Key: your-api-key
+```
+
+## Environment Variables
+
+For security, it's recommended to use environment variables for API keys:
+
+```typescript
+// Reads from process.env.DEDALUS_API_KEY
+const client = new Dedalus();
+```
+
+Supported environment variables:
+- `DEDALUS_API_KEY` - For Bearer token authentication
+- `DEDALUS_X_API_KEY` - For X-API-Key header authentication
+
+## Authentication Headers
+
+The SDK automatically constructs authentication headers based on your configuration:
+
+```typescript src/client.ts:317-333
+protected async authHeaders(opts: FinalRequestOptions): Promise<NullableHeaders | undefined> {
+  return buildHeaders([await this.bearerAuth(opts), await this.apiKeyAuth(opts)]);
+}
+
+protected async bearerAuth(opts: FinalRequestOptions): Promise<NullableHeaders | undefined> {
+  if (this.apiKey == null) {
+    return undefined;
+  }
+  return buildHeaders([{ Authorization: `Bearer ${this.apiKey}` }]);
+}
+
+protected async apiKeyAuth(opts: FinalRequestOptions): Promise<NullableHeaders | undefined> {
+  if (this.xAPIKey == null) {
+    return undefined;
+  }
+  return buildHeaders([{ 'x-api-key': this.xAPIKey }]);
+}
+```
+
+## Validation
+
+The SDK validates that at least one authentication method is configured. If no authentication is provided, an error is thrown:
+
+```typescript src/client.ts:297-315
+protected validateHeaders({ values, nulls }: NullableHeaders) {
+  if (this.apiKey && values.get('authorization')) {
+    return;
+  }
+  if (nulls.has('authorization')) {
+    return;
+  }
+
+  if (this.xAPIKey && values.get('x-api-key')) {
+    return;
+  }
+  if (nulls.has('x-api-key')) {
+    return;
+  }
+
+  throw new Error(
+    'Could not resolve authentication method. Expected either apiKey or xAPIKey to be set. Or for one of the "Authorization" or "x-api-key" headers to be explicitly omitted',
+  );
+}
+```
+
+## Per-Request Authentication Override
+
+You can override authentication headers for individual requests:
+
+```typescript
+const client = new Dedalus({ apiKey: 'default-key' });
+
+// Use a different API key for this specific request
+await client.chat.completions.create(
+  { model: 'gpt-4', messages: [...] },
+  { 
+    headers: { 
+      'Authorization': 'Bearer different-key' 
+    } 
+  }
+);
+```
+
+## Organization Scoping
+
+Include an organization ID to scope requests to a specific organization:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  organization: 'org-12345'
+});
+```
+
+This can also be set via the `DEDALUS_ORG_ID` environment variable.
+
+## BYOK Authentication
+
+For Bring Your Own Key (BYOK) mode, provide both Dedalus credentials and provider credentials:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-dedalus-api-key',
+  provider: 'openai',
+  providerKey: 'your-openai-api-key'
+});
+```
+
+The provider credentials are sent via custom headers:
+- `X-Provider`: The provider name
+- `X-Provider-Key`: The provider's API key
+
+## Security Best Practices
+
+<Warning>
+Never hardcode API keys in your source code. Always use environment variables or secure configuration management.
+</Warning>
+
+### Use Environment Variables
+
+```bash
+export DEDALUS_API_KEY='your-api-key'
+```
+
+```typescript
+const client = new Dedalus(); // Automatically reads from env
+```
+
+### Rotate Keys Regularly
+
+Implement a key rotation policy and update environment variables when rotating keys.
+
+### Restrict Key Permissions
+
+Use organization-scoped keys when possible to limit the scope of access.
+
+### Monitor Usage
+
+Track API key usage and set up alerts for unusual activity.
+
+## Error Handling
+
+Authentication errors return an `AuthenticationError` (401 status code):
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({ apiKey: 'invalid-key' });
+
+try {
+  await client.models.list();
+} catch (error) {
+  if (error instanceof Dedalus.AuthenticationError) {
+    console.error('Authentication failed:', error.message);
+    console.error('Status:', error.status); // 401
+  }
+}
+```
+
+See [Error Handling](/core-concepts/error-handling) for more details on handling authentication errors.

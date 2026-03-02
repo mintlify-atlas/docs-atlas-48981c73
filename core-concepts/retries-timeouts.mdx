@@ -1,0 +1,410 @@
+---
+title: 'Retries & Timeouts'
+description: 'Configure automatic retries, timeout settings, and backoff strategies'
+---
+
+The Dedalus SDK automatically retries failed requests and supports configurable timeouts to ensure robust API interactions.
+
+## Timeout Configuration
+
+### Default Timeout
+
+The SDK sets a default timeout of 60 seconds (60,000 milliseconds) for all requests:
+
+```typescript src/client.ts:833
+static DEFAULT_TIMEOUT = 60000; // 1 minute
+```
+
+### Configuring Timeouts
+
+Set a custom timeout when creating the client:
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  timeout: 30000 // 30 seconds
+});
+```
+
+The timeout applies to individual requests, not the total time including retries.
+
+<Note>
+Request timeouts are retried by default, so in a worst-case scenario you may wait much longer than this timeout before the promise succeeds or fails.
+</Note>
+
+### Per-Request Timeouts
+
+Override the timeout for specific requests:
+
+```typescript
+await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }]
+  },
+  { timeout: 120000 } // 2 minutes for this request
+);
+```
+
+### Timeout Implementation
+
+The SDK implements timeouts using `AbortController`:
+
+```typescript src/client.ts:616-648
+async fetchWithTimeout(
+  url: RequestInfo,
+  init: RequestInit | undefined,
+  ms: number,
+  controller: AbortController,
+): Promise<Response> {
+  const { signal, method, ...options } = init || {};
+  if (signal) signal.addEventListener('abort', () => controller.abort());
+
+  const timeout = setTimeout(() => controller.abort(), ms);
+
+  const isReadableBody =
+    ((globalThis as any).ReadableStream && options.body instanceof (globalThis as any).ReadableStream) ||
+    (typeof options.body === 'object' && options.body !== null && Symbol.asyncIterator in options.body);
+
+  const fetchOptions: RequestInit = {
+    signal: controller.signal as any,
+    ...(isReadableBody ? { duplex: 'half' } : {}),
+    method: 'GET',
+    ...options,
+  };
+  if (method) {
+    // Custom methods like 'patch' need to be uppercased
+    // See https://github.com/nodejs/undici/issues/2294
+    fetchOptions.method = method.toUpperCase();
+  }
+
+  try {
+    // use undefined this binding; fetch errors if bound to something else in browser/cloudflare
+    return await this.fetch.call(undefined, url, fetchOptions);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+```
+
+## Retry Configuration
+
+### Default Retry Behavior
+
+The SDK automatically retries failed requests up to 2 times by default:
+
+```typescript src/client.ts:246
+this.maxRetries = options.maxRetries ?? 2;
+```
+
+This means each request can be attempted up to 3 times total (initial attempt + 2 retries).
+
+### Configuring Max Retries
+
+Set a custom retry count when creating the client:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  maxRetries: 5 // Retry up to 5 times
+});
+```
+
+### Per-Request Retry Configuration
+
+Override retries for specific requests:
+
+```typescript
+await client.chat.completions.create(
+  {
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }]
+  },
+  { maxRetries: 0 } // Don't retry this request
+);
+```
+
+### Disabling Retries
+
+Set `maxRetries` to 0 to disable automatic retries:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  maxRetries: 0
+});
+```
+
+## Retry Conditions
+
+The SDK automatically retries requests in these scenarios:
+
+### Network Errors
+
+Connection failures and network errors are automatically retried:
+
+```typescript src/client.ts:514-527
+if (retriesRemaining) {
+  loggerFor(this).info(
+    `[${requestLogID}] connection ${isTimeout ? 'timed out' : 'failed'} - ${retryMessage}`,
+  );
+  loggerFor(this).debug(
+    `[${requestLogID}] connection ${isTimeout ? 'timed out' : 'failed'} (${retryMessage})`,
+    formatRequestDetails({
+      retryOfRequestLogID,
+      url,
+      durationMs: headersTime - startTime,
+      message: response.message,
+    }),
+  );
+  return this.retryRequest(options, retriesRemaining, retryOfRequestLogID ?? requestLogID);
+}
+```
+
+### HTTP Status Codes
+
+The following HTTP status codes trigger automatic retries:
+
+```typescript src/client.ts:651-672
+private async shouldRetry(response: Response): Promise<boolean> {
+  // Note this is not a standard header.
+  const shouldRetryHeader = response.headers.get('x-should-retry');
+
+  // If the server explicitly says whether or not to retry, obey.
+  if (shouldRetryHeader === 'true') return true;
+  if (shouldRetryHeader === 'false') return false;
+
+  // Retry on request timeouts.
+  if (response.status === 408) return true;
+
+  // Retry on lock timeouts.
+  if (response.status === 409) return true;
+
+  // Retry on rate limits.
+  if (response.status === 429) return true;
+
+  // Retry internal errors.
+  if (response.status >= 500) return true;
+
+  return false;
+}
+```
+
+Retried status codes:
+- **408** - Request Timeout
+- **409** - Conflict (lock timeouts)
+- **429** - Rate Limit Exceeded
+- **500+** - Internal Server Errors
+
+### Server-Controlled Retries
+
+The server can control retry behavior using the `x-should-retry` header:
+- `x-should-retry: true` - Always retry
+- `x-should-retry: false` - Never retry (overrides default behavior)
+
+## Backoff Strategy
+
+The SDK implements exponential backoff with jitter for retries:
+
+```typescript src/client.ts:713-726
+private calculateDefaultRetryTimeoutMillis(retriesRemaining: number, maxRetries: number): number {
+  const initialRetryDelay = 0.5;
+  const maxRetryDelay = 8.0;
+
+  const numRetries = maxRetries - retriesRemaining;
+
+  // Apply exponential backoff, but not more than the max.
+  const sleepSeconds = Math.min(initialRetryDelay * Math.pow(2, numRetries), maxRetryDelay);
+
+  // Apply some jitter, take up to at most 25 percent of the retry time.
+  const jitter = 1 - Math.random() * 0.25;
+
+  return sleepSeconds * jitter * 1000;
+}
+```
+
+Backoff characteristics:
+- **Initial delay**: 0.5 seconds
+- **Maximum delay**: 8 seconds
+- **Strategy**: Exponential (doubles each retry)
+- **Jitter**: Up to 25% randomization to prevent thundering herd
+
+### Retry Delay Examples
+
+| Retry Number | Base Delay | Delay Range (with jitter) |
+|-------------|-----------|---------------------------|
+| 1 | 0.5s | 0.375s - 0.5s |
+| 2 | 1.0s | 0.75s - 1.0s |
+| 3 | 2.0s | 1.5s - 2.0s |
+| 4 | 4.0s | 3.0s - 4.0s |
+| 5+ | 8.0s | 6.0s - 8.0s (capped) |
+
+## Server-Specified Retry Delays
+
+The server can specify retry delays using standard headers:
+
+```typescript src/client.ts:680-700
+private async retryRequest(
+  options: FinalRequestOptions,
+  retriesRemaining: number,
+  requestLogID: string,
+  responseHeaders?: Headers | undefined,
+): Promise<APIResponseProps> {
+  let timeoutMillis: number | undefined;
+
+  // Note the `retry-after-ms` header may not be standard, but is a good idea and we'd like proactive support for it.
+  const retryAfterMillisHeader = responseHeaders?.get('retry-after-ms');
+  if (retryAfterMillisHeader) {
+    const timeoutMs = parseFloat(retryAfterMillisHeader);
+    if (!Number.isNaN(timeoutMs)) {
+      timeoutMillis = timeoutMs;
+    }
+  }
+
+  // About the Retry-After header: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After
+  const retryAfterHeader = responseHeaders?.get('retry-after');
+  if (retryAfterHeader && !timeoutMillis) {
+    const timeoutSeconds = parseFloat(retryAfterHeader);
+```
+
+Supported headers:
+- `retry-after-ms` - Milliseconds to wait before retry (non-standard)
+- `retry-after` - Seconds to wait, or HTTP date for absolute time (standard)
+
+The server-specified delay is used if it's reasonable (between 0 and 60 seconds):
+
+```typescript src/client.ts:704-707
+// If the API asks us to wait a certain amount of time (and it's a reasonable amount),
+// just do what it says, but otherwise calculate a default
+if (!(timeoutMillis && 0 <= timeoutMillis && timeoutMillis < 60 * 1000)) {
+  const maxRetries = options.maxRetries ?? this.maxRetries;
+```
+
+## Timeout Errors
+
+When a request times out, the SDK throws an `APIConnectionTimeoutError`:
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({ 
+  apiKey: 'key',
+  timeout: 5000 // 5 seconds
+});
+
+try {
+  await client.chat.completions.create({...});
+} catch (error) {
+  if (error instanceof Dedalus.APIConnectionTimeoutError) {
+    console.error('Request timed out after 5 seconds');
+  }
+}
+```
+
+## Manual Abort
+
+Use `AbortController` to manually cancel requests:
+
+```typescript
+const controller = new AbortController();
+
+// Cancel after 10 seconds
+setTimeout(() => controller.abort(), 10000);
+
+try {
+  await client.chat.completions.create(
+    {
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'Hello!' }]
+    },
+    { signal: controller.signal }
+  );
+} catch (error) {
+  if (error instanceof Dedalus.APIUserAbortError) {
+    console.log('Request was manually aborted');
+  }
+}
+```
+
+## Best Practices
+
+### Long-Running Requests
+
+For endpoints that may take longer (e.g., large file processing):
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'key',
+  timeout: 300000, // 5 minutes
+  maxRetries: 1 // Fewer retries for expensive operations
+});
+```
+
+### Critical Operations
+
+For non-idempotent operations where retries could cause issues:
+
+```typescript
+await client.someOperation(
+  {...},
+  { 
+    maxRetries: 0, // No automatic retries
+    timeout: 30000 
+  }
+);
+```
+
+### Rate Limit Handling
+
+The SDK automatically handles rate limits with retries, but you can implement custom logic:
+
+```typescript
+try {
+  await client.chat.completions.create({...});
+} catch (error) {
+  if (error instanceof Dedalus.RateLimitError) {
+    const retryAfter = error.headers?.get('retry-after');
+    console.log(`Rate limited. Retry after ${retryAfter} seconds`);
+  }
+}
+```
+
+### Logging Retries
+
+Enable debug logging to see retry behavior:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'key',
+  logLevel: 'debug'
+});
+
+// Logs will show retry attempts:
+// [log_abc123] connection failed - retrying, 2 attempts remaining
+// [log_abc123] connection failed - retrying, 1 attempts remaining
+```
+
+## Total Request Time
+
+The total time for a request includes all retry attempts:
+
+```
+Total Time = (timeout × attempts) + (sum of backoff delays)
+```
+
+Example with default settings:
+- Timeout: 60s
+- Max retries: 2
+- Maximum total time: ~183s (60s + 60s + 60s + 0.5s + 1s + 1.5s backoff)
+
+To limit total time, reduce either timeout or maxRetries:
+
+```typescript
+const client = new Dedalus({
+  timeout: 30000,  // 30s per attempt
+  maxRetries: 1    // Only retry once
+});
+// Maximum total time: ~61s
+```

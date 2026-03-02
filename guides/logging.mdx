@@ -1,0 +1,384 @@
+---
+title: 'Logging'
+description: 'Configure log levels and custom loggers for debugging and monitoring'
+icon: 'file-lines'
+---
+
+## Overview
+
+The Dedalus SDK includes built-in logging functionality to help you debug requests, monitor API calls, and track application behavior. You can configure log levels and provide custom logger implementations.
+
+<Warning>
+All log messages are intended for debugging only. The format and content of log messages may change between releases.
+</Warning>
+
+## Log Levels
+
+The SDK supports five log levels, from most to least verbose:
+
+- `debug` - Show debug messages, info, warnings, and errors
+- `info` - Show info messages, warnings, and errors
+- `warn` - Show warnings and errors (default)
+- `error` - Show only errors
+- `off` - Disable all logging
+
+## Configuring Log Level
+
+You can configure the log level in two ways:
+
+### 1. Using Environment Variable
+
+Set the `DEDALUS_LOG` environment variable:
+
+```bash
+# In your terminal or .env file
+export DEDALUS_LOG=debug
+```
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+// Uses the DEDALUS_LOG environment variable
+const client = new Dedalus();
+```
+
+### 2. Using Client Option
+
+Pass the `logLevel` option when creating the client (this overrides the environment variable):
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'debug',
+});
+```
+
+## Log Level Examples
+
+### Debug Level
+
+Shows all log messages including HTTP requests and responses:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'debug',
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+
+// Console output:
+// [log_a1b2c3] sending request POST https://api.dedaluslabs.ai/v1/chat/completions
+// [log_a1b2c3] request headers: {"Authorization":"Bearer sk-***", ...}
+// [log_a1b2c3] request body: {"model":"openai/gpt-5-nano", ...}
+// [log_a1b2c3] response succeeded with status 200 in 1234ms
+// [log_a1b2c3] response headers: {"Content-Type":"application/json", ...}
+// [log_a1b2c3] response body: {"id":"cmpl_123", ...}
+```
+
+<Warning>
+At the `debug` level, all HTTP requests and responses are logged, including headers and bodies. Some authentication headers are redacted, but sensitive data in request and response bodies may still be visible.
+</Warning>
+
+### Info Level
+
+Shows informational messages without full request/response details:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'info',
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+
+// Console output:
+// [log_a1b2c3] POST https://api.dedaluslabs.ai/v1/chat/completions succeeded with status 200 in 1234ms
+```
+
+### Warn Level (Default)
+
+Only shows warnings and errors:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'warn', // This is the default
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+
+// Console output: (none for successful requests)
+```
+
+### Error Level
+
+Only shows errors:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'error',
+});
+
+try {
+  const completion = await client.chat.completions.create({
+    model: 'invalid-model',
+    messages: [{ role: 'user', content: 'Hello' }],
+  });
+} catch (error) {
+  // Error logs will appear here
+}
+```
+
+### Off
+
+Disable all logging:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'off',
+});
+
+// No logs will be output
+```
+
+## Custom Logger
+
+You can provide a custom logger implementation. Most popular logging libraries are supported:
+
+### Using Pino
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import pino from 'pino';
+
+const logger = pino({
+  level: 'debug',
+  transport: {
+    target: 'pino-pretty',
+  },
+});
+
+const client = new Dedalus({
+  logger: logger.child({ name: 'Dedalus' }),
+  logLevel: 'debug',
+});
+```
+
+### Using Winston
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: 'debug',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'dedalus.log' }),
+  ],
+});
+
+const client = new Dedalus({
+  logger: logger,
+  logLevel: 'debug',
+});
+```
+
+### Using Bunyan
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import bunyan from 'bunyan';
+
+const logger = bunyan.createLogger({
+  name: 'dedalus-app',
+  level: 'debug',
+  streams: [
+    {
+      stream: process.stdout,
+    },
+    {
+      path: './dedalus.log',
+    },
+  ],
+});
+
+const client = new Dedalus({
+  logger: logger,
+  logLevel: 'debug',
+});
+```
+
+### Using Consola
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import { createConsola } from 'consola';
+
+const logger = createConsola({
+  level: 4, // 4 = debug
+});
+
+const client = new Dedalus({
+  logger: logger,
+  logLevel: 'debug',
+});
+```
+
+### Using Deno std/log
+
+```typescript
+import Dedalus from 'npm:dedalus-labs';
+import * as log from 'https://deno.land/std@0.208.0/log/mod.ts';
+
+log.setup({
+  handlers: {
+    console: new log.ConsoleHandler('DEBUG'),
+  },
+  loggers: {
+    default: {
+      level: 'DEBUG',
+      handlers: ['console'],
+    },
+  },
+});
+
+const logger = log.getLogger();
+
+const client = new Dedalus({
+  logger: logger,
+  logLevel: 'debug',
+});
+```
+
+## Custom Logger Interface
+
+If your logger doesn't work automatically, you can create a wrapper that implements the expected interface:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const customLogger = {
+  debug: (message: string, ...args: any[]) => {
+    console.log('[DEBUG]', message, ...args);
+  },
+  info: (message: string, ...args: any[]) => {
+    console.log('[INFO]', message, ...args);
+  },
+  warn: (message: string, ...args: any[]) => {
+    console.warn('[WARN]', message, ...args);
+  },
+  error: (message: string, ...args: any[]) => {
+    console.error('[ERROR]', message, ...args);
+  },
+};
+
+const client = new Dedalus({
+  logger: customLogger,
+  logLevel: 'debug',
+});
+```
+
+## Log Message Format
+
+Log messages follow this general format:
+
+```
+[<log_id>] <message> <details>
+```
+
+- `log_id`: A unique identifier for correlating log entries (e.g., `log_a1b2c3`)
+- `message`: Human-readable description
+- `details`: Additional context (only at debug level)
+
+### Example Log Messages
+
+```
+[log_a1b2c3] sending request POST https://api.dedaluslabs.ai/v1/chat/completions
+[log_a1b2c3] POST https://api.dedaluslabs.ai/v1/chat/completions succeeded with status 200 in 1234ms
+[log_a1b2c3] connection failed - retrying, 2 attempts remaining
+[log_a1b2c3, retryOf: log_xyz789] sending request POST https://api.dedaluslabs.ai/v1/chat/completions
+```
+
+## Logging and Retries
+
+The SDK logs retry attempts with correlation IDs:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  logLevel: 'info',
+  maxRetries: 3,
+});
+
+// Logs will show retry attempts:
+// [log_a1b2c3] connection failed - retrying, 3 attempts remaining
+// [log_def456, retryOf: log_a1b2c3] sending request
+// [log_def456, retryOf: log_a1b2c3] POST ... succeeded with status 200
+```
+
+## Log Level Control
+
+When providing a custom logger, the `logLevel` option still controls which messages are emitted. Messages below the configured level will not be sent to your logger:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import pino from 'pino';
+
+const logger = pino({ level: 'trace' }); // Pino accepts all levels
+
+const client = new Dedalus({
+  logger: logger,
+  logLevel: 'warn', // SDK only sends warn and error to logger
+});
+
+// Debug and info messages won't reach pino
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use debug in development">
+    Set `logLevel: 'debug'` during development to see full request/response details.
+  </Step>
+  
+  <Step title="Use warn or error in production">
+    In production, use `warn` or `error` to reduce log volume and avoid exposing sensitive data.
+  </Step>
+  
+  <Step title="Rotate log files">
+    When logging to files, implement log rotation to prevent disk space issues.
+  </Step>
+  
+  <Step title="Sanitize sensitive data">
+    If you must log at debug level in production, ensure sensitive data is properly redacted.
+  </Step>
+  
+  <Step title="Use structured logging">
+    Use structured logging libraries (pino, winston) for easier log analysis and monitoring.
+  </Step>
+</Steps>
+
+<Note>
+The SDK automatically redacts authentication tokens in logs, but other sensitive data in request/response bodies may still appear at the debug level.
+</Note>

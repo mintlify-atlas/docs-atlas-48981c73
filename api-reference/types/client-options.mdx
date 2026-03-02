@@ -1,0 +1,193 @@
+---
+title: 'ClientOptions'
+description: 'Configuration options for initializing the Dedalus client'
+---
+
+## Overview
+
+The `ClientOptions` interface defines all configuration options available when creating a new Dedalus client instance. These options control authentication, API endpoints, network behavior, and logging.
+
+## Type Definition
+
+```typescript
+export interface ClientOptions {
+  apiKey?: string | null | undefined;
+  xAPIKey?: string | null | undefined;
+  organization?: string | null | undefined;
+  provider?: string | null | undefined;
+  providerKey?: string | null | undefined;
+  providerModel?: string | null | undefined;
+  environment?: Environment | undefined;
+  baseURL?: string | null | undefined;
+  timeout?: number | undefined;
+  fetchOptions?: MergedRequestInit | undefined;
+  fetch?: Fetch | undefined;
+  maxRetries?: number | undefined;
+  defaultHeaders?: HeadersLike | undefined;
+  defaultQuery?: Record<string, string | undefined> | undefined;
+  logLevel?: LogLevel | undefined;
+  logger?: Logger | undefined;
+}
+```
+
+## Properties
+
+### Authentication Options
+
+<ResponseField name="apiKey" type="string | null">
+  API key for Bearer token authentication.
+  
+  **Environment Variable:** `DEDALUS_API_KEY`
+</ResponseField>
+
+<ResponseField name="xAPIKey" type="string | null">
+  API key for X-API-Key header authentication.
+  
+  **Environment Variable:** `DEDALUS_X_API_KEY`
+</ResponseField>
+
+<ResponseField name="organization" type="string | null">
+  Organization ID for request scoping.
+  
+  **Environment Variable:** `DEDALUS_ORG_ID`
+</ResponseField>
+
+### BYOK (Bring Your Own Key) Options
+
+<ResponseField name="provider" type="string | null">
+  Provider name for BYOK mode (e.g., "openai", "anthropic").
+  
+  **Environment Variable:** `DEDALUS_PROVIDER`
+</ResponseField>
+
+<ResponseField name="providerKey" type="string | null">
+  Provider API key for BYOK mode.
+  
+  **Environment Variable:** `DEDALUS_PROVIDER_KEY`
+</ResponseField>
+
+<ResponseField name="providerModel" type="string | null">
+  Model identifier for BYOK provider.
+  
+  **Environment Variable:** `DEDALUS_PROVIDER_MODEL`
+</ResponseField>
+
+### API Endpoint Configuration
+
+<ResponseField name="environment" type="'production' | 'development'">
+  Specifies the environment to use for the API.
+  
+  Each environment maps to a different base URL:
+  - `production` → `https://api.dedaluslabs.ai`
+  - `development` → `http://localhost:8080`
+  
+  **Default:** `production`
+</ResponseField>
+
+<ResponseField name="baseURL" type="string | null">
+  Override the default base URL for the API.
+  
+  Example: `"https://api.example.com/v2/"`
+  
+  **Environment Variable:** `DEDALUS_BASE_URL`
+  
+  <Note>
+    Cannot be used together with `environment`. If you want to use the environment setting, pass `baseURL: null`.
+  </Note>
+</ResponseField>
+
+### Network Configuration
+
+<ResponseField name="timeout" type="number">
+  The maximum amount of time (in milliseconds) that the client should wait for a response from the server before timing out a single request.
+  
+  **Default:** `60000` (1 minute)
+  
+  **Unit:** milliseconds
+  
+  <Note>
+    Request timeouts are retried by default, so in a worst-case scenario you may wait much longer than this timeout before the promise succeeds or fails.
+  </Note>
+</ResponseField>
+
+<ResponseField name="maxRetries" type="number">
+  The maximum number of times that the client will retry a request in case of a temporary failure, like a network error or a 5XX error from the server.
+  
+  **Default:** `2`
+</ResponseField>
+
+<ResponseField name="fetchOptions" type="MergedRequestInit">
+  Additional `RequestInit` options to be passed to `fetch` calls. Properties will be overridden by per-request `fetchOptions`.
+</ResponseField>
+
+<ResponseField name="fetch" type="Fetch">
+  Specify a custom `fetch` function implementation.
+  
+  If not provided, the client expects that `fetch` is defined globally.
+</ResponseField>
+
+### Default Request Options
+
+<ResponseField name="defaultHeaders" type="HeadersLike">
+  Default headers to include with every request to the API.
+  
+  These can be removed in individual requests by explicitly setting the header to `null` in request options.
+</ResponseField>
+
+<ResponseField name="defaultQuery" type="Record<string, string | undefined>">
+  Default query parameters to include with every request to the API.
+  
+  These can be removed in individual requests by explicitly setting the param to `undefined` in request options.
+</ResponseField>
+
+### Logging Options
+
+<ResponseField name="logLevel" type="LogLevel">
+  Set the log level.
+  
+  **Environment Variable:** `DEDALUS_LOG`
+  
+  **Default:** `'warn'`
+  
+  **Valid Values:** `'debug' | 'info' | 'warn' | 'error'`
+</ResponseField>
+
+<ResponseField name="logger" type="Logger">
+  Set the logger instance.
+  
+  **Default:** `globalThis.console`
+</ResponseField>
+
+## Usage Example
+
+```typescript
+import { Dedalus } from '@dedaluscloud/dedalus-api';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  organization: 'org-123',
+  timeout: 30000,
+  maxRetries: 3,
+  logLevel: 'info',
+});
+```
+
+## Environment Variables
+
+The following environment variables are automatically read if the corresponding options are not provided:
+
+| Environment Variable | Maps to Option | Description |
+|---------------------|----------------|-------------|
+| `DEDALUS_API_KEY` | `apiKey` | Bearer token authentication |
+| `DEDALUS_X_API_KEY` | `xAPIKey` | X-API-Key header authentication |
+| `DEDALUS_ORG_ID` | `organization` | Organization ID |
+| `DEDALUS_PROVIDER` | `provider` | BYOK provider name |
+| `DEDALUS_PROVIDER_KEY` | `providerKey` | BYOK provider API key |
+| `DEDALUS_PROVIDER_MODEL` | `providerModel` | BYOK model identifier |
+| `DEDALUS_BASE_URL` | `baseURL` | Custom base URL |
+| `DEDALUS_LOG` | `logLevel` | Logging level |
+
+## See Also
+
+- [Authentication](/core-concepts/authentication)
+- [Error Handling](/api-reference/types/errors)

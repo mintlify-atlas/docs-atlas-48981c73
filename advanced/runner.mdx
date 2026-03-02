@@ -1,0 +1,529 @@
+---
+title: DedalusRunner
+description: Automated multi-turn conversations with local tool execution
+---
+
+The `DedalusRunner` class provides a high-level interface for executing multi-turn conversations with automatic tool calling and execution. It handles the complexity of tool loops, conversation state management, and streaming responses.
+
+## Overview
+
+`DedalusRunner` wraps the Dedalus client and automatically:
+- Executes local tools when the model requests them
+- Manages multi-turn conversations up to a maximum number of steps
+- Supports both streaming and non-streaming responses
+- Handles MCP (Model Context Protocol) server integration
+- Tracks tool usage and model handoffs
+
+## Installation
+
+The runner is included in the main SDK:
+
+```bash
+npm install dedalus-labs
+```
+
+## Basic Usage
+
+```typescript
+import { Dedalus, DedalusRunner } from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY
+});
+
+const runner = new DedalusRunner(client);
+
+const result = await runner.run({
+  model: 'anthropic/claude-3-5-sonnet-20241022',
+  input: 'What is the weather in San Francisco?',
+  tools: [
+    {
+      name: 'get_weather',
+      description: 'Get the current weather for a location',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'City name' },
+          unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
+        },
+        required: ['location']
+      },
+      function: async ({ location, unit = 'fahrenheit' }) => {
+        // Your weather API call here
+        return { temperature: 72, unit, condition: 'sunny' };
+      }
+    }
+  ],
+  maxSteps: 10
+});
+
+console.log(result.output); // Final response from the model
+console.log(result.toolsCalled); // ['get_weather']
+```
+
+## RunParams Options
+
+### Required Parameters
+
+<ParamField path="model" type="string | DedalusModelChoice | DedalusModelChoice[]" required>
+  The model(s) to use for the conversation. Can be a single model or an array for multi-model handoffs.
+  
+  ```typescript
+  // Single model
+  model: 'openai/gpt-4'
+  
+  // Model object
+  model: { model: 'openai/gpt-4', provider: 'openai' }
+  
+  // Multiple models for handoffs
+  model: [
+    'anthropic/claude-3-5-sonnet-20241022',
+    'openai/gpt-4'
+  ]
+  ```
+</ParamField>
+
+### Input Parameters
+
+<ParamField path="input" type="string | Message[]">
+  The user's input. Can be a string or an array of message objects.
+  
+  ```typescript
+  // Simple string
+  input: 'Hello, how are you?'
+  
+  // Message array
+  input: [
+    { role: 'user', content: 'What is 2+2?' }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="messages" type="Message[]">
+  Complete message history. Use this instead of `input` to continue an existing conversation.
+  
+  ```typescript
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant' },
+    { role: 'user', content: 'Hello' },
+    { role: 'assistant', content: 'Hi there!' },
+    { role: 'user', content: 'What can you help me with?' }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="instructions" type="string">
+  System instructions to prepend to the conversation.
+  
+  ```typescript
+  instructions: 'You are a weather expert. Always provide temperature in Celsius.'
+  ```
+</ParamField>
+
+### Tool Configuration
+
+<ParamField path="tools" type="Iterable<Tool>">
+  Local tools to make available to the model. Each tool should have a function that returns JSON-serializable data.
+  
+  ```typescript
+  tools: [
+    {
+      name: 'calculate',
+      description: 'Perform mathematical calculations',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: { type: 'string' }
+        },
+        required: ['expression']
+      },
+      function: async ({ expression }) => {
+        return { result: eval(expression) }; // In production, use a safe math parser
+      }
+    }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="mcpServers" type="Iterable<string>">
+  MCP server URLs to connect to for additional tools.
+  
+  ```typescript
+  mcpServers: [
+    'http://localhost:3000',
+    'https://mcp.example.com/tools'
+  ]
+  ```
+</ParamField>
+
+<ParamField path="autoExecuteTools" type="boolean" default="true">
+  Whether to automatically execute tool calls. Set to `false` to inspect tool calls without executing them.
+  
+  ```typescript
+  autoExecuteTools: false // Model will return tool_calls but won't execute them
+  ```
+</ParamField>
+
+### Execution Control
+
+<ParamField path="maxSteps" type="number" default="10">
+  Maximum number of conversation turns before stopping.
+  
+  ```typescript
+  maxSteps: 5 // Stop after 5 model calls
+  ```
+</ParamField>
+
+<ParamField path="stream" type="boolean" default="false">
+  Enable streaming responses.
+  
+  ```typescript
+  stream: true
+  ```
+</ParamField>
+
+### Logging
+
+<ParamField path="verbose" type="boolean" default="false">
+  Enable verbose logging of steps, tool calls, and model handoffs.
+  
+  ```typescript
+  verbose: true
+  ```
+</ParamField>
+
+<ParamField path="debug" type="boolean" default="false">
+  Enable debug logging including conversation snapshots.
+  
+  ```typescript
+  debug: true
+  ```
+</ParamField>
+
+### Other Parameters
+
+All standard chat completion parameters are supported:
+
+```typescript
+{
+  temperature: 0.7,
+  max_tokens: 1000,
+  top_p: 0.9,
+  frequency_penalty: 0.5,
+  presence_penalty: 0.5,
+  stop: ['STOP'],
+  response_format: { type: 'json_object' }
+}
+```
+
+## RunResult Object
+
+The `run()` method returns a `RunResult` object with the following properties:
+
+<ResponseField name="output" type="string">
+  The final text output from the model.
+</ResponseField>
+
+<ResponseField name="content" type="string">
+  Alias for `output`.
+</ResponseField>
+
+<ResponseField name="finalOutput" type="string">
+  The final text output from the model (same as `output`).
+</ResponseField>
+
+<ResponseField name="toolResults" type="ToolResult[]">
+  Array of all tool executions with their results.
+  
+  ```typescript
+  [
+    {
+      name: 'get_weather',
+      result: { temperature: 72, condition: 'sunny' },
+      step: 1
+    }
+  ]
+  ```
+</ResponseField>
+
+<ResponseField name="stepsUsed" type="number">
+  Number of conversation turns used.
+</ResponseField>
+
+<ResponseField name="conversationHistory" type="Message[]">
+  Complete conversation history including tool calls and responses.
+</ResponseField>
+
+<ResponseField name="toolsCalled" type="string[]">
+  List of tool names that were called.
+</ResponseField>
+
+<ResponseField name="modelsUsed" type="DedalusModelChoice[]">
+  List of models used during the conversation (for multi-model scenarios).
+</ResponseField>
+
+### Methods
+
+<ResponseField name="toInputList()" type="Message[]">
+  Returns the conversation history as a message array for continuing the conversation.
+  
+  ```typescript
+  const result = await runner.run({ model, input: 'Hello' });
+  
+  // Continue the conversation
+  const nextResult = await runner.run({
+    model,
+    messages: result.toInputList(),
+    input: 'Tell me more'
+  });
+  ```
+</ResponseField>
+
+## Streaming Responses
+
+Enable streaming to get real-time updates:
+
+```typescript
+const stream = await runner.run({
+  model: 'anthropic/claude-3-5-sonnet-20241022',
+  input: 'Write a short story',
+  stream: true
+});
+
+for await (const chunk of stream) {
+  if (chunk.choices?.[0]?.delta?.content) {
+    process.stdout.write(chunk.choices[0].delta.content);
+  }
+}
+```
+
+## Multi-Turn Conversations
+
+The runner automatically manages multi-turn conversations with tools:
+
+```typescript
+const result = await runner.run({
+  model: 'anthropic/claude-3-5-sonnet-20241022',
+  input: 'What is the weather in SF and what should I wear?',
+  tools: [
+    {
+      name: 'get_weather',
+      description: 'Get current weather',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string' }
+        },
+        required: ['location']
+      },
+      function: async ({ location }) => {
+        return { temperature: 65, condition: 'foggy' };
+      }
+    },
+    {
+      name: 'get_clothing_recommendation',
+      description: 'Get clothing recommendations based on weather',
+      parameters: {
+        type: 'object',
+        properties: {
+          temperature: { type: 'number' },
+          condition: { type: 'string' }
+        },
+        required: ['temperature', 'condition']
+      },
+      function: async ({ temperature, condition }) => {
+        return { recommendation: 'Light jacket recommended' };
+      }
+    }
+  ],
+  maxSteps: 5,
+  verbose: true
+});
+
+// The runner will:
+// 1. Call get_weather('SF')
+// 2. Call get_clothing_recommendation(65, 'foggy')
+// 3. Return final answer with both pieces of information
+```
+
+## MCP Server Integration
+
+Connect to external MCP servers for additional tools:
+
+```typescript
+const result = await runner.run({
+  model: 'anthropic/claude-3-5-sonnet-20241022',
+  input: 'Search for recent papers on transformers',
+  mcpServers: [
+    'http://localhost:3000/mcp-tools'
+  ],
+  maxSteps: 10
+});
+
+// The model can now use both local tools and tools from the MCP server
+```
+
+## Using toSchema Helper
+
+The SDK provides a `toSchema` helper for creating tool schemas from Zod or TypeScript types:
+
+```typescript
+import { toSchema } from 'dedalus-labs/runner';
+import { z } from 'zod';
+
+const weatherTool = {
+  name: 'get_weather',
+  description: 'Get weather for a location',
+  parameters: toSchema(z.object({
+    location: z.string().describe('City name'),
+    unit: z.enum(['celsius', 'fahrenheit']).optional()
+  })),
+  function: async ({ location, unit = 'fahrenheit' }) => {
+    return { temperature: 72, unit, condition: 'sunny' };
+  }
+};
+
+const result = await runner.run({
+  model: 'openai/gpt-4',
+  input: 'Weather in NYC?',
+  tools: [weatherTool]
+});
+```
+
+## Multi-Model Handoffs
+
+The runner supports automatic handoffs between models:
+
+```typescript
+const result = await runner.run({
+  model: [
+    'anthropic/claude-3-5-sonnet-20241022',  // Primary model
+    'openai/gpt-4',                          // Fallback/specialist
+    'openai/o1-mini'                         // Another option
+  ],
+  input: 'Analyze this code and suggest improvements',
+  maxSteps: 10,
+  verbose: true
+});
+
+// The primary model can hand off to other models when needed
+console.log(result.modelsUsed); // Shows which models were used
+```
+
+## Error Handling
+
+The runner handles tool execution errors gracefully:
+
+```typescript
+const result = await runner.run({
+  model: 'openai/gpt-4',
+  input: 'Calculate 1/0',
+  tools: [
+    {
+      name: 'divide',
+      description: 'Divide two numbers',
+      parameters: {
+        type: 'object',
+        properties: {
+          a: { type: 'number' },
+          b: { type: 'number' }
+        },
+        required: ['a', 'b']
+      },
+      function: async ({ a, b }) => {
+        if (b === 0) throw new Error('Division by zero');
+        return { result: a / b };
+      }
+    }
+  ]
+});
+
+// The error is captured and sent back to the model, which can respond appropriately
+// e.g., "I cannot divide by zero. Would you like to try a different calculation?"
+```
+
+## Advanced Example
+
+Complete example with multiple features:
+
+```typescript
+import { Dedalus, DedalusRunner } from 'dedalus-labs';
+import { z } from 'zod';
+import { toSchema } from 'dedalus-labs/runner';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+  logLevel: 'info'
+});
+
+const runner = new DedalusRunner(client, true); // verbose mode
+
+const tools = [
+  {
+    name: 'search_database',
+    description: 'Search the product database',
+    parameters: toSchema(z.object({
+      query: z.string().describe('Search query'),
+      limit: z.number().int().positive().default(10)
+    })),
+    function: async ({ query, limit }) => {
+      // Your database search logic
+      return {
+        results: [
+          { id: 1, name: 'Product A', price: 29.99 },
+          { id: 2, name: 'Product B', price: 39.99 }
+        ]
+      };
+    }
+  },
+  {
+    name: 'get_product_details',
+    description: 'Get detailed information about a product',
+    parameters: toSchema(z.object({
+      product_id: z.number().int().positive()
+    })),
+    function: async ({ product_id }) => {
+      // Your product details logic
+      return {
+        id: product_id,
+        name: 'Product A',
+        description: 'A great product',
+        price: 29.99,
+        in_stock: true
+      };
+    }
+  }
+];
+
+const result = await runner.run({
+  model: 'anthropic/claude-3-5-sonnet-20241022',
+  instructions: 'You are a helpful shopping assistant.',
+  input: 'Find me affordable products under $50',
+  tools,
+  maxSteps: 10,
+  temperature: 0.7,
+  verbose: true,
+  debug: true
+});
+
+console.log('Final response:', result.output);
+console.log('Tools used:', result.toolsCalled);
+console.log('Steps taken:', result.stepsUsed);
+```
+
+## Best Practices
+
+1. **Set appropriate maxSteps**: Prevent infinite loops by limiting conversation turns
+2. **Use verbose mode during development**: Helps debug tool execution and model behavior
+3. **Handle tool errors gracefully**: Let the model recover from errors naturally
+4. **Provide clear tool descriptions**: Better descriptions lead to better tool usage
+5. **Use streaming for long responses**: Improves user experience for lengthy outputs
+6. **Validate tool inputs**: Use Zod schemas or manual validation in tool functions
+7. **Monitor token usage**: Track `result.stepsUsed` to manage costs
+
+## Limitations
+
+- Currently only supports HTTP transport
+- Maximum of `maxSteps` conversation turns
+- Tool execution is sequential (not parallel)
+- Streaming mode doesn't return `RunResult` - only yields chunks

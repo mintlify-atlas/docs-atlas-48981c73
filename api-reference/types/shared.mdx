@@ -1,0 +1,466 @@
+---
+title: 'Shared Types'
+description: 'Common types used across the Dedalus API'
+---
+
+## Overview
+
+This page documents shared TypeScript types used throughout the Dedalus API, including model selection, function definitions, and response format configurations.
+
+## Model Types
+
+### DedalusModel
+
+Structured model selection entry used in request payloads. Supports OpenAI-style semantics (string model id) while enabling optional per-model default settings for Dedalus multi-model routing.
+
+```typescript
+export interface DedalusModel {
+  model: string;
+  settings?: DedalusModel.Settings | null;
+}
+```
+
+<ResponseField name="model" type="string" required>
+  Model identifier with provider prefix.
+  
+  **Examples:**
+  - `"openai/gpt-4"`
+  - `"openai/gpt-5"`
+  - `"anthropic/claude-3-5-sonnet"`
+  - `"google/gemini-pro"`
+</ResponseField>
+
+<ResponseField name="settings" type="Settings | null">
+  Optional default generation settings (e.g., temperature, max_tokens) applied when this model is selected.
+  
+  See [DedalusModel.Settings](#dedalusmodelsettings) for available properties.
+</ResponseField>
+
+### DedalusModel.Settings
+
+Configuration settings that can be applied to a specific model selection.
+
+```typescript
+export interface Settings {
+  // Core generation parameters
+  temperature?: number | null;
+  max_tokens?: number | null;
+  max_completion_tokens?: number | null;
+  top_p?: number | null;
+  top_k?: number | null;
+  
+  // Response control
+  response_format?: { [key: string]: unknown } | null;
+  stop?: string | Array<string> | null;
+  seed?: number | null;
+  
+  // Penalties and biases
+  frequency_penalty?: number | null;
+  presence_penalty?: number | null;
+  logit_bias?: { [key: string]: number } | null;
+  
+  // Tool and function calling
+  tool_choice?: ToolChoice | null;
+  parallel_tool_calls?: boolean | null;
+  tool_config?: { [key: string]: unknown } | null;
+  
+  // Advanced features
+  reasoning?: Reasoning | null;
+  reasoning_effort?: string | null;
+  logprobs?: boolean | null;
+  top_logprobs?: number | null;
+  
+  // Audio and multimodal
+  audio?: { [key: string]: unknown } | null;
+  modalities?: Array<string> | null;
+  voice?: string | null;
+  input_audio_format?: string | null;
+  output_audio_format?: string | null;
+  input_audio_transcription?: { [key: string]: unknown } | null;
+  
+  // Search and tools
+  search_parameters?: { [key: string]: unknown } | null;
+  web_search_options?: { [key: string]: unknown } | null;
+  
+  // Response customization
+  response_include?: Array<
+    | 'file_search_call.results'
+    | 'web_search_call.results'
+    | 'web_search_call.action.sources'
+    | 'message.input_image.image_url'
+    | 'computer_call_output.output.image_url'
+    | 'code_interpreter_call.outputs'
+    | 'reasoning.encrypted_content'
+    | 'message.output_text.logprobs'
+  > | null;
+  
+  // Other options
+  n?: number | null;
+  stream?: boolean | null;
+  stream_options?: { [key: string]: unknown } | null;
+  store?: boolean | null;
+  metadata?: { [key: string]: string } | null;
+  user?: string | null;
+  timeout?: number | null;
+  deferred?: boolean | null;
+  include_usage?: boolean | null;
+  
+  // Provider-specific
+  extra_args?: { [key: string]: unknown } | null;
+  extra_headers?: { [key: string]: string } | null;
+  extra_query?: { [key: string]: unknown } | null;
+  attributes?: { [key: string]: unknown };
+  generation_config?: { [key: string]: unknown } | null;
+  system_instruction?: { [key: string]: unknown } | null;
+  safety_settings?: Array<{ [key: string]: unknown }> | null;
+  safety_identifier?: string | null;
+  thinking?: { [key: string]: unknown } | null;
+  prediction?: { [key: string]: unknown } | null;
+  structured_output?: unknown;
+  prompt_cache_key?: string | null;
+  service_tier?: string | null;
+  truncation?: 'auto' | 'disabled' | null;
+  turn_detection?: { [key: string]: unknown } | null;
+  use_responses?: boolean;
+  verbosity?: string | null;
+}
+```
+
+### DedalusModelChoice
+
+Union type for model selection - either a string ID or DedalusModel configuration object.
+
+```typescript
+export type DedalusModelChoice = string | DedalusModel;
+```
+
+**Usage Examples:**
+
+```typescript
+// Simple string model ID
+const model1: DedalusModelChoice = "openai/gpt-4";
+
+// Model with settings
+const model2: DedalusModelChoice = {
+  model: "anthropic/claude-3-5-sonnet",
+  settings: {
+    temperature: 0.7,
+    max_tokens: 1000,
+  }
+};
+```
+
+## Function Calling Types
+
+### FunctionDefinition
+
+Defines a function that can be called by the model during chat completions.
+
+```typescript
+export interface FunctionDefinition {
+  name: string;
+  description?: string;
+  parameters?: FunctionParameters;
+  strict?: boolean | null;
+}
+```
+
+<ResponseField name="name" type="string" required>
+  The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  A description of what the function does, used by the model to choose when and how to call the function.
+</ResponseField>
+
+<ResponseField name="parameters" type="FunctionParameters">
+  The parameters the function accepts, described as a JSON Schema object.
+  
+  Omitting `parameters` defines a function with an empty parameter list.
+  
+  See the [OpenAI function calling guide](https://platform.openai.com/docs/guides/function-calling) for examples, and the [JSON Schema reference](https://json-schema.org/understanding-json-schema/) for documentation about the format.
+</ResponseField>
+
+<ResponseField name="strict" type="boolean | null">
+  Whether to enable strict schema adherence when generating the function call.
+  
+  If set to `true`, the model will follow the exact schema defined in the `parameters` field. Only a subset of JSON Schema is supported when `strict` is `true`.
+  
+  Learn more about Structured Outputs in the [function calling guide](https://platform.openai.com/docs/guides/function-calling).
+</ResponseField>
+
+### FunctionParameters
+
+JSON Schema object describing function parameters.
+
+```typescript
+export type FunctionParameters = { [key: string]: unknown };
+```
+
+**Example:**
+
+```typescript
+const weatherFunction: FunctionDefinition = {
+  name: "get_weather",
+  description: "Get the current weather for a location",
+  parameters: {
+    type: "object",
+    properties: {
+      location: {
+        type: "string",
+        description: "The city and state, e.g. San Francisco, CA"
+      },
+      unit: {
+        type: "string",
+        enum: ["celsius", "fahrenheit"],
+        description: "The temperature unit to use"
+      }
+    },
+    required: ["location"]
+  },
+  strict: true
+};
+```
+
+## Response Format Types
+
+### ResponseFormatText
+
+Default response format for generating text responses.
+
+```typescript
+export interface ResponseFormatText {
+  type: 'text';
+}
+```
+
+<ResponseField name="type" type="'text'" required>
+  The type of response format being defined. Always `"text"`.
+</ResponseField>
+
+**Example:**
+
+```typescript
+const format: ResponseFormatText = { type: 'text' };
+```
+
+### ResponseFormatJSONObject
+
+JSON object response format. An older method of generating JSON responses. Using `json_schema` is recommended for models that support it.
+
+```typescript
+export interface ResponseFormatJSONObject {
+  type: 'json_object';
+}
+```
+
+<ResponseField name="type" type="'json_object'" required>
+  The type of response format being defined. Always `"json_object"`.
+</ResponseField>
+
+<Note>
+  The model will not generate JSON without a system or user message instructing it to do so.
+</Note>
+
+**Example:**
+
+```typescript
+const response = await client.chat.completions.create({
+  model: "gpt-4",
+  messages: [
+    {
+      role: "system",
+      content: "You are a helpful assistant that responds in JSON."
+    },
+    { role: "user", content: "List 3 colors" }
+  ],
+  response_format: { type: 'json_object' }
+});
+```
+
+### ResponseFormatJSONSchema
+
+JSON Schema response format for generating structured JSON responses. Recommended for models that support Structured Outputs.
+
+```typescript
+export interface ResponseFormatJSONSchema {
+  type: 'json_schema';
+  json_schema: ResponseFormatJSONSchema.JSONSchema;
+}
+```
+
+<ResponseField name="type" type="'json_schema'" required>
+  The type of response format being defined. Always `"json_schema"`.
+</ResponseField>
+
+<ResponseField name="json_schema" type="JSONSchema" required>
+  Structured Outputs configuration options, including a JSON Schema.
+</ResponseField>
+
+### ResponseFormatJSONSchema.JSONSchema
+
+Schema configuration for structured JSON outputs.
+
+```typescript
+export interface JSONSchema {
+  name: string;
+  description?: string;
+  schema?: { [key: string]: unknown };
+  strict?: boolean | null;
+}
+```
+
+<ResponseField name="name" type="string" required>
+  The name of the response format. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  A description of what the response format is for, used by the model to determine how to respond in the format.
+</ResponseField>
+
+<ResponseField name="schema" type="object">
+  The schema for the response format, described as a JSON Schema object.
+  
+  Learn how to build JSON schemas at [json-schema.org](https://json-schema.org/).
+</ResponseField>
+
+<ResponseField name="strict" type="boolean | null">
+  Whether to enable strict schema adherence when generating the output.
+  
+  If set to `true`, the model will always follow the exact schema defined in the `schema` field. Only a subset of JSON Schema is supported when `strict` is `true`.
+  
+  Learn more in the [Structured Outputs guide](https://platform.openai.com/docs/guides/structured-outputs).
+</ResponseField>
+
+**Example:**
+
+```typescript
+const response = await client.chat.completions.create({
+  model: "gpt-4",
+  messages: [
+    { role: "user", content: "Generate a person's profile" }
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'person_profile',
+      description: 'A person profile with basic information',
+      schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+          email: { type: 'string', format: 'email' },
+          interests: {
+            type: 'array',
+            items: { type: 'string' }
+          }
+        },
+        required: ['name', 'age', 'email'],
+        additionalProperties: false
+      },
+      strict: true
+    }
+  }
+});
+```
+
+## Usage Examples
+
+### Multi-Model Request with Settings
+
+```typescript
+import { DedalusModelChoice } from '@dedaluscloud/dedalus-api';
+
+const models: DedalusModelChoice[] = [
+  {
+    model: "openai/gpt-4",
+    settings: {
+      temperature: 0.7,
+      max_tokens: 500
+    }
+  },
+  {
+    model: "anthropic/claude-3-5-sonnet",
+    settings: {
+      temperature: 0.8,
+      max_tokens: 1000
+    }
+  }
+];
+
+const response = await client.chat.completions.create({
+  models: models,
+  messages: [{ role: 'user', content: 'Hello!' }]
+});
+```
+
+### Function Calling with Strict Mode
+
+```typescript
+const functions: FunctionDefinition[] = [
+  {
+    name: "calculate_price",
+    description: "Calculate total price with tax",
+    parameters: {
+      type: "object",
+      properties: {
+        subtotal: { type: "number" },
+        tax_rate: { type: "number" }
+      },
+      required: ["subtotal", "tax_rate"],
+      additionalProperties: false
+    },
+    strict: true
+  }
+];
+```
+
+### Response Format Comparison
+
+```typescript
+// Text format (default)
+const textResponse = await client.chat.completions.create({
+  model: "gpt-4",
+  messages: [{ role: "user", content: "Hello" }],
+  response_format: { type: "text" }
+});
+
+// JSON object format
+const jsonResponse = await client.chat.completions.create({
+  model: "gpt-4",
+  messages: [
+    { role: "system", content: "Respond in JSON" },
+    { role: "user", content: "List colors" }
+  ],
+  response_format: { type: "json_object" }
+});
+
+// JSON schema format (structured outputs)
+const structuredResponse = await client.chat.completions.create({
+  model: "gpt-4",
+  messages: [{ role: "user", content: "Generate a user" }],
+  response_format: {
+    type: "json_schema",
+    json_schema: {
+      name: "user",
+      schema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          email: { type: "string" }
+        },
+        required: ["name", "email"]
+      },
+      strict: true
+    }
+  }
+});
+```
+
+## See Also
+
+- [Chat Completions](/api-reference/chat/completions)
+- [Tool Calling Guide](/api-reference/chat/tool-calling)
+- [Structured Outputs Guide](/guides/structured-outputs)
+- [ClientOptions](/api-reference/types/client-options)

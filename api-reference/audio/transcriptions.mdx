@@ -1,0 +1,204 @@
+---
+title: 'Create Transcription'
+api: 'POST /v1/audio/transcriptions'
+---
+
+Transcribes audio files using OpenAI's Whisper model. Supports multiple audio formats including mp3, mp4, mpeg, mpga, m4a, wav, and webm. Maximum file size is 25 MB.
+
+## Method
+
+```typescript
+client.audio.transcriptions.create(params)
+```
+
+## Request Parameters
+
+<ParamField body="file" type="File" required>
+  The audio file object (not file name) to transcribe, in one of these formats: mp3, mp4, mpeg, mpga, m4a, wav, or webm.
+  
+  Maximum file size: 25 MB
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  Model ID to use for transcription (e.g., `openai/whisper-1`).
+</ParamField>
+
+<ParamField body="language" type="string">
+  The language of the input audio in ISO-639-1 format (e.g., `en`, `es`, `fr`). Supplying the input language in will improve accuracy and latency.
+</ParamField>
+
+<ParamField body="prompt" type="string">
+  An optional text to guide the model's style or continue a previous audio segment. The prompt should match the audio language.
+</ParamField>
+
+<ParamField body="response_format" type="string">
+  The format of the transcript output. Options:
+  - `json` - JSON response with text only
+  - `text` - Plain text
+  - `srt` - SubRip subtitle format
+  - `verbose_json` - JSON with timestamps, segments, and metadata
+  - `vtt` - WebVTT subtitle format
+  
+  Default: `json`
+</ParamField>
+
+<ParamField body="temperature" type="number">
+  The sampling temperature, between 0 and 1. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. If set to 0, the model will use log probability to automatically increase the temperature until certain thresholds are hit.
+  
+  Default: `0`
+</ParamField>
+
+## Response
+
+<ResponseField name="text" type="string" required>
+  The transcribed text.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  The language of the input audio (verbose_json only).
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  The duration of the input audio in seconds (verbose_json only).
+</ResponseField>
+
+<ResponseField name="words" type="array">
+  Extracted words and their corresponding timestamps (verbose_json with timestamp granularities).
+  
+  <Expandable title="Word Object">
+    <ResponseField name="word" type="string">
+      The text content of the word.
+    </ResponseField>
+    
+    <ResponseField name="start" type="number">
+      Start time of the word in seconds.
+    </ResponseField>
+    
+    <ResponseField name="end" type="number">
+      End time of the word in seconds.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="segments" type="array">
+  Segments of the transcribed text and their corresponding details (verbose_json only).
+  
+  <Expandable title="Segment Object">
+    <ResponseField name="id" type="number">
+      Unique identifier of the segment.
+    </ResponseField>
+    
+    <ResponseField name="text" type="string">
+      Text content of the segment.
+    </ResponseField>
+    
+    <ResponseField name="start" type="number">
+      Start time of the segment in seconds.
+    </ResponseField>
+    
+    <ResponseField name="end" type="number">
+      End time of the segment in seconds.
+    </ResponseField>
+    
+    <ResponseField name="tokens" type="array">
+      Array of token IDs for the text content.
+    </ResponseField>
+    
+    <ResponseField name="temperature" type="number">
+      Temperature parameter used for generating the segment.
+    </ResponseField>
+    
+    <ResponseField name="avg_logprob" type="number">
+      Average logprob of the segment. If the value is lower than -1, consider the logprobs failed.
+    </ResponseField>
+    
+    <ResponseField name="compression_ratio" type="number">
+      Compression ratio of the segment. If the value is greater than 2.4, consider the compression failed.
+    </ResponseField>
+    
+    <ResponseField name="no_speech_prob" type="number">
+      Probability of no speech in the segment. If the value is higher than 1.0 and the avg_logprob is below -1, consider this segment silent.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="usage" type="object">
+  Usage statistics for the request.
+  
+  <Expandable title="Usage Object">
+    <ResponseField name="type" type="string">
+      Either `duration` or `tokens` depending on billing model.
+    </ResponseField>
+    
+    <ResponseField name="seconds" type="number">
+      Duration of the input audio in seconds (for duration-based billing).
+    </ResponseField>
+    
+    <ResponseField name="input_tokens" type="number">
+      Number of input tokens (for token-based billing).
+    </ResponseField>
+    
+    <ResponseField name="output_tokens" type="number">
+      Number of output tokens (for token-based billing).
+    </ResponseField>
+    
+    <ResponseField name="total_tokens" type="number">
+      Total number of tokens (for token-based billing).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="logprobs" type="array">
+  The log probabilities of the tokens in the transcription. Only returned with models like `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` if logprobs is added to the include array.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```typescript Basic Transcription
+import fs from "fs";
+
+const transcription = await client.audio.transcriptions.create({
+  file: fs.createReadStream("audio.mp3"),
+  model: "openai/whisper-1",
+});
+
+console.log(transcription.text);
+```
+
+```typescript With Language
+const transcription = await client.audio.transcriptions.create({
+  file: fs.createReadStream("spanish-audio.mp3"),
+  model: "openai/whisper-1",
+  language: "es",
+  response_format: "verbose_json"
+});
+
+console.log(transcription.text);
+console.log(transcription.language);
+console.log(transcription.duration);
+```
+
+```typescript With Prompt
+const transcription = await client.audio.transcriptions.create({
+  file: fs.createReadStream("meeting.wav"),
+  model: "openai/whisper-1",
+  prompt: "This is a meeting about quarterly earnings and financial projections.",
+  temperature: 0.2
+});
+
+console.log(transcription.text);
+```
+
+```typescript SRT Subtitle Format
+const srt = await client.audio.transcriptions.create({
+  file: fs.createReadStream("video-audio.mp4"),
+  model: "openai/whisper-1",
+  response_format: "srt"
+});
+
+fs.writeFileSync("subtitles.srt", srt);
+```
+
+</CodeGroup>

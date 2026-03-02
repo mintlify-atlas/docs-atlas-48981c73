@@ -1,0 +1,582 @@
+---
+title: 'Advanced Usage'
+description: 'Custom fetch clients, proxies, raw responses, and advanced SDK configuration'
+icon: 'flask'
+---
+
+## Overview
+
+This guide covers advanced topics like customizing the fetch client, configuring proxies, accessing raw response data, making custom requests, and working with request-level options.
+
+## Accessing Raw Responses
+
+The Dedalus SDK provides methods to access the underlying `Response` object from `fetch()`:
+
+### Using asResponse()
+
+Get the raw `Response` as soon as headers are received (doesn't consume the body):
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const response = await client.chat.completions
+  .create({
+    model: 'openai/gpt-5-nano',
+    messages: [
+      { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+      { role: 'user', content: 'Hello, how are you today?' },
+    ],
+  })
+  .asResponse();
+
+console.log(response.headers.get('X-Request-ID'));
+console.log(response.statusText);
+console.log(response.status);
+
+// You can still parse the body
+const completion = await response.json();
+console.log(completion);
+```
+
+### Using withResponse()
+
+Get both the parsed data and the raw `Response` (consumes the body):
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const { data: completion, response: raw } = await client.chat.completions
+  .create({
+    model: 'openai/gpt-5-nano',
+    messages: [
+      { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+      { role: 'user', content: 'Hello, how are you today?' },
+    ],
+  })
+  .withResponse();
+
+console.log(raw.headers.get('X-Request-ID'));
+console.log(raw.status);
+console.log(completion.id);
+console.log(completion.choices[0].message.content);
+```
+
+## Custom Fetch Client
+
+You can customize the `fetch` implementation used by the SDK:
+
+### Global Polyfill
+
+Replace the global `fetch` function:
+
+```typescript
+import fetch from 'node-fetch';
+import Dedalus from 'dedalus-labs';
+
+// @ts-ignore
+globalThis.fetch = fetch;
+
+const client = new Dedalus();
+```
+
+### Client-Level Configuration
+
+Pass a custom `fetch` function to the client:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import fetch from 'node-fetch';
+
+const client = new Dedalus({
+  fetch: fetch as any,
+});
+```
+
+### Custom Fetch with Interceptors
+
+Wrap fetch to add custom behavior:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const customFetch: typeof fetch = async (input, init) => {
+  console.log('Making request to:', input);
+  
+  const response = await fetch(input, init);
+  
+  console.log('Response status:', response.status);
+  
+  return response;
+};
+
+const client = new Dedalus({
+  fetch: customFetch,
+});
+```
+
+## Fetch Options
+
+You can set custom `fetch` options at the client or request level:
+
+### Client-Level Fetch Options
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  fetchOptions: {
+    keepalive: true,
+    signal: AbortSignal.timeout(30000),
+  },
+});
+```
+
+### Request-Level Fetch Options
+
+Request-specific options override client options:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [{ role: 'user', content: 'Hello' }],
+  },
+  {
+    fetchOptions: {
+      priority: 'high',
+    },
+  }
+);
+```
+
+## Configuring Proxies
+
+Proxy configuration varies by runtime:
+
+### Node.js with Undici
+
+<CodeGroup>
+
+```typescript Node.js
+import Dedalus from 'dedalus-labs';
+import * as undici from 'undici';
+
+const proxyAgent = new undici.ProxyAgent('http://localhost:8888');
+
+const client = new Dedalus({
+  fetchOptions: {
+    dispatcher: proxyAgent,
+  },
+});
+```
+
+```typescript Bun
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  fetchOptions: {
+    proxy: 'http://localhost:8888',
+  },
+});
+```
+
+```typescript Deno
+import Dedalus from 'npm:dedalus-labs';
+
+const httpClient = Deno.createHttpClient({ 
+  proxy: { url: 'http://localhost:8888' } 
+});
+
+const client = new Dedalus({
+  fetchOptions: {
+    client: httpClient,
+  },
+});
+```
+
+</CodeGroup>
+
+### HTTPS Proxy with Authentication
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import * as undici from 'undici';
+
+const proxyAgent = new undici.ProxyAgent({
+  uri: 'http://proxy.example.com:8080',
+  token: `Basic ${Buffer.from('username:password').toString('base64')}`,
+});
+
+const client = new Dedalus({
+  fetchOptions: {
+    dispatcher: proxyAgent,
+  },
+});
+```
+
+## Custom Headers
+
+### Default Headers
+
+Set headers for all requests:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  defaultHeaders: {
+    'X-Custom-Header': 'my-value',
+    'User-Agent': 'MyApp/1.0',
+  },
+});
+```
+
+### Request-Level Headers
+
+Override headers for specific requests:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [
+      { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+      { role: 'user', content: 'Hello, how are you today?' },
+    ],
+  },
+  { 
+    headers: { 
+      'User-Agent': 'My-Custom-Value',
+      'X-Request-ID': 'req-12345',
+    } 
+  }
+);
+```
+
+### Removing Default Headers
+
+Set a header to `null` to remove it:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  defaultHeaders: {
+    'User-Agent': 'MyApp/1.0',
+  },
+});
+
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [{ role: 'user', content: 'Hello' }],
+  },
+  { 
+    headers: { 
+      'User-Agent': null, // Removes the User-Agent header
+    } 
+  }
+);
+```
+
+## Automatic Default Headers
+
+The SDK automatically sends these headers with all requests:
+
+| Header | Value |
+|--------|-------|
+| `User-Agent` | `Dedalus-SDK` |
+| `X-SDK-Version` | `1.0.0` |
+
+You can override these using the methods above.
+
+## Making Custom Requests
+
+### Using HTTP Verbs
+
+Make requests to undocumented or custom endpoints:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+// GET request
+const data = await client.get('/custom/endpoint', {
+  query: { param1: 'value1' },
+});
+
+// POST request
+const result = await client.post('/custom/endpoint', {
+  body: { some_prop: 'foo' },
+  query: { some_query_arg: 'bar' },
+});
+
+// PUT request
+await client.put('/custom/endpoint', {
+  body: { update: 'data' },
+});
+
+// DELETE request
+await client.delete('/custom/endpoint');
+```
+
+### Undocumented Parameters
+
+Use undocumented parameters with TypeScript:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [{ role: 'user', content: 'Hello' }],
+  // @ts-expect-error experimental_feature is not yet public
+  experimental_feature: true,
+});
+```
+
+### Undocumented Response Properties
+
+Access undocumented response properties:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+
+// @ts-expect-error accessing undocumented property
+const experimentalData = completion.experimental_data;
+
+// Or cast to a custom type
+interface ExtendedCompletion extends Dedalus.Chat.Completion {
+  experimental_data?: string;
+}
+
+const extendedCompletion = completion as ExtendedCompletion;
+console.log(extendedCompletion.experimental_data);
+```
+
+## Timeouts
+
+### Default Timeout
+
+Requests time out after 1 minute by default.
+
+### Client-Level Timeout
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  timeout: 20 * 1000, // 20 seconds
+});
+```
+
+### Request-Level Timeout
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [{ role: 'user', content: 'Hello' }],
+  },
+  {
+    timeout: 5 * 1000, // 5 seconds
+  }
+);
+```
+
+<Note>
+On timeout, an `APIConnectionTimeoutError` is thrown. Requests that time out are retried twice by default.
+</Note>
+
+## Retries
+
+### Default Retry Behavior
+
+The SDK automatically retries failed requests up to 2 times with exponential backoff for:
+
+- Connection errors
+- 408 Request Timeout
+- 409 Conflict
+- 429 Rate Limit
+- 5xx Internal Server Errors
+
+### Client-Level Retry Configuration
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  maxRetries: 5, // Retry up to 5 times
+});
+
+// Disable retries
+const clientNoRetries = new Dedalus({
+  maxRetries: 0,
+});
+```
+
+### Request-Level Retry Configuration
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [{ role: 'user', content: 'Hello' }],
+  },
+  {
+    maxRetries: 5,
+  }
+);
+```
+
+## Default Query Parameters
+
+Set query parameters for all requests:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  defaultQuery: {
+    api_version: '2024-01',
+  },
+});
+
+// All requests will include ?api_version=2024-01
+```
+
+Remove default query parameters by setting them to `undefined`:
+
+```typescript
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [{ role: 'user', content: 'Hello' }],
+  },
+  {
+    query: {
+      api_version: undefined, // Removes the default query param
+    },
+  }
+);
+```
+
+## Base URL Configuration
+
+### Using Environment
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  environment: 'development', // Uses http://localhost:8080
+});
+
+const prodClient = new Dedalus({
+  environment: 'production', // Uses https://api.dedaluslabs.ai
+});
+```
+
+### Custom Base URL
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  baseURL: 'https://custom-api.example.com/v1',
+});
+```
+
+### Using Environment Variable
+
+```bash
+export DEDALUS_BASE_URL=https://custom-api.example.com/v1
+```
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+// Uses DEDALUS_BASE_URL from environment
+const client = new Dedalus();
+```
+
+## Client Cloning
+
+Create a new client instance with modified options:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  timeout: 60000,
+  maxRetries: 2,
+});
+
+// Clone with different timeout
+const fastClient = client.withOptions({
+  timeout: 5000,
+});
+
+// Clone with different environment
+const devClient = client.withOptions({
+  environment: 'development',
+});
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use environment variables">
+    Store API keys and base URLs in environment variables instead of hardcoding them.
+  </Step>
+  
+  <Step title="Configure appropriate timeouts">
+    Set timeouts based on your use case - shorter for user-facing requests, longer for background tasks.
+  </Step>
+  
+  <Step title="Handle retry exhaustion">
+    Always handle cases where all retries are exhausted and the request still fails.
+  </Step>
+  
+  <Step title="Use custom fetch for testing">
+    Inject a mock fetch implementation for testing without making real API calls.
+  </Step>
+  
+  <Step title="Monitor proxy performance">
+    When using proxies, monitor for additional latency and connection issues.
+  </Step>
+</Steps>
+
+<Warning>
+When using custom fetch implementations or proxies, ensure they properly handle streaming responses and abort signals.
+</Warning>

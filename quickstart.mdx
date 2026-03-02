@@ -1,80 +1,251 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Create your first chat completion with the Dedalus SDK
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before you begin, make sure you have:
 
-### Step 1: Set up your local environment
+- Installed the Dedalus SDK (see [Installation](/installation))
+- A valid API key stored in your environment variables
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+## Create your first chat completion
+
+Here's a complete example to get you started with the Dedalus SDK:
+
+```typescript index.ts
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY, // This is the default and can be omitted
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+    { role: 'user', content: 'Hello, how are you today?' },
+  ],
+});
+
+console.log(completion.id);
+console.log(completion.choices[0].message.content);
+```
+
+<Steps>
+  <Step title="Import and initialize">
+    Import the Dedalus client and create a new instance. The API key is automatically loaded from your environment variables.
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```typescript
+    import Dedalus from 'dedalus-labs';
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    const client = new Dedalus();
+    ```
+  </Step>
+  
+  <Step title="Create a completion">
+    Call the `chat.completions.create()` method with your model and messages.
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```typescript
+    const completion = await client.chat.completions.create({
+      model: 'openai/gpt-5-nano',
+      messages: [
+        { role: 'user', content: 'Hello!' },
+      ],
+    });
+    ```
+  </Step>
+  
+  <Step title="Access the response">
+    The completion object contains the model's response and metadata.
+    
+    ```typescript
+    console.log(completion.choices[0].message.content);
+    console.log(completion.usage);
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Stream responses
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+For real-time responses, enable streaming with Server Sent Events:
 
-### Step 3: Go live
+```typescript streaming.ts
+import Dedalus from 'dedalus-labs';
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+const client = new Dedalus();
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [
+    { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+    { role: 'user', content: 'What do you think of artificial intelligence?' },
+  ],
+});
+
+for await (const chunk of stream) {
+  const content = chunk.choices[0]?.delta?.content || '';
+  process.stdout.write(content);
+}
+```
+
+<Note>
+You can cancel a stream at any time by calling `stream.controller.abort()` or by using `break` in the loop.
+</Note>
+
+## Working with TypeScript types
+
+The SDK includes full TypeScript support with type definitions for all request params and response fields:
+
+```typescript types.ts
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+// Type-safe request parameters
+const params: Dedalus.Chat.CompletionCreateParams = {
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+    { role: 'user', content: 'Hello, how are you today?' },
+  ],
+};
+
+// Type-safe response
+const completion: Dedalus.Chat.Completion = await client.chat.completions.create(params);
+
+// IntelliSense and autocomplete work throughout
+console.log(completion.choices[0].message.content);
+```
+
+## Handle errors
+
+The SDK provides specific error types for different failure scenarios:
+
+```typescript error-handling.ts
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+try {
+  const completion = await client.chat.completions.create({
+    model: 'openai/gpt-5-nano',
+    messages: [
+      { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+      { role: 'user', content: 'Hello, how are you today?' },
+    ],
+  });
+  
+  console.log(completion.choices[0].message.content);
+} catch (err) {
+  if (err instanceof Dedalus.APIError) {
+    console.log(err.status); // 400
+    console.log(err.name); // BadRequestError
+    console.log(err.headers); // {server: 'nginx', ...}
+  } else {
+    throw err;
+  }
+}
+```
+
+### Error types
+
+The SDK provides specific error classes for different HTTP status codes:
+
+| Status Code | Error Type                 |
+| ----------- | -------------------------- |
+| 400         | `BadRequestError`          |
+| 401         | `AuthenticationError`      |
+| 403         | `PermissionDeniedError`    |
+| 404         | `NotFoundError`            |
+| 422         | `UnprocessableEntityError` |
+| 429         | `RateLimitError`           |
+| >=500       | `InternalServerError`      |
+| N/A         | `APIConnectionError`       |
+
+## Configure retries and timeouts
+
+Customize retry behavior and request timeouts:
+
+<CodeGroup>
+
+```typescript Global configuration
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  maxRetries: 5, // default is 2
+  timeout: 20 * 1000, // 20 seconds (default is 60 seconds)
+});
+```
+
+```typescript Per-request configuration
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-5-nano',
+    messages: [
+      { role: 'user', content: 'Hello!' },
+    ],
+  },
+  {
+    maxRetries: 5,
+    timeout: 10 * 1000, // 10 seconds
+  }
+);
+```
+
+</CodeGroup>
+
+<Note>
+The SDK automatically retries connection errors, timeouts (408), conflicts (409), rate limits (429), and server errors (>=500) with exponential backoff.
+</Note>
+
+## Use additional options
+
+You can configure organization ID, custom providers (BYOK), and other options:
+
+```typescript advanced.ts
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+  organization: 'org_123', // Optional: scope requests to an organization
+  provider: 'openai', // Optional: BYOK provider name
+  providerKey: process.env.PROVIDER_KEY, // Optional: BYOK provider API key
+  providerModel: 'gpt-4', // Optional: BYOK model identifier
+});
+```
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api-reference/overview"
+  >
+    Explore all available methods and options
+  </Card>
+  <Card
+    title="Chat Completions"
+    icon="messages"
+    href="/api-reference/chat/completions"
+  >
+    Learn more about chat completion options
+  </Card>
+  <Card
+    title="Embeddings"
+    icon="vector-square"
+    href="/api-reference/embeddings/create"
+  >
+    Generate embeddings for text
+  </Card>
+  <Card
+    title="Error Handling"
+    icon="shield-exclamation"
+    href="/core-concepts/error-handling"
+  >
+    Advanced error handling patterns
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

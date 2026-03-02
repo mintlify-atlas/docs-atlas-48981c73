@@ -1,0 +1,258 @@
+---
+title: 'Environments'
+description: 'Configure production, development, and custom API environments'
+---
+
+The Dedalus SDK supports multiple environment configurations to simplify switching between production, development, and custom API endpoints.
+
+## Environment Presets
+
+The SDK provides two built-in environment presets:
+
+```typescript src/client.ts:51-55
+const environments = {
+  production: 'https://api.dedaluslabs.ai',
+  development: 'http://localhost:8080',
+};
+type Environment = keyof typeof environments;
+```
+
+### Production Environment
+
+The default environment for production use:
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  environment: 'production' // Default
+});
+
+// Base URL: https://api.dedaluslabs.ai
+```
+
+### Development Environment
+
+For local development and testing:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'dev-key',
+  environment: 'development'
+});
+
+// Base URL: http://localhost:8080
+```
+
+## Custom Base URLs
+
+Override the environment preset with a custom base URL:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  baseURL: 'https://custom.api.example.com/v1'
+});
+```
+
+### Using Environment Variables
+
+Set the base URL via environment variable:
+
+```bash
+export DEDALUS_BASE_URL='https://staging.api.dedaluslabs.ai'
+```
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key'
+  // Automatically uses DEDALUS_BASE_URL
+});
+```
+
+## Environment vs Base URL
+
+<Warning>
+You cannot use both `environment` and `baseURL` options simultaneously. This will throw a `DedalusError`.
+</Warning>
+
+```typescript
+// This will throw an error
+const client = new Dedalus({
+  apiKey: 'key',
+  environment: 'production',
+  baseURL: 'https://custom.com' // ERROR!
+});
+```
+
+The SDK validates this at initialization:
+
+```typescript src/client.ts:229-233
+if (baseURL && opts.environment) {
+  throw new Errors.DedalusError(
+    'Ambiguous URL; The `baseURL` option (or DEDALUS_BASE_URL env var) and the `environment` option are given. If you want to use the environment you must pass baseURL: null',
+  );
+}
+```
+
+To use an environment preset when `DEDALUS_BASE_URL` is set, explicitly pass `baseURL: null`:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'key',
+  environment: 'production',
+  baseURL: null // Explicitly ignore DEDALUS_BASE_URL
+});
+```
+
+## Base URL Resolution
+
+The SDK resolves the base URL in the following order:
+
+1. Explicit `baseURL` parameter
+2. `environment` parameter (if `baseURL` is not set)
+3. `DEDALUS_BASE_URL` environment variable
+4. Default to `production` environment
+
+```typescript src/client.ts:235
+this.baseURL = options.baseURL || environments[options.environment || 'production'];
+```
+
+## URL Construction
+
+The SDK automatically constructs full URLs by combining the base URL with endpoint paths:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'key',
+  environment: 'production'
+});
+
+// Requests to: https://api.dedaluslabs.ai/v1/models
+await client.models.list();
+
+// Requests to: https://api.dedaluslabs.ai/v1/chat/completions
+await client.chat.completions.create({...});
+```
+
+The `buildURL` method handles trailing slashes and absolute URLs:
+
+```typescript src/client.ts:372-393
+buildURL(
+  path: string,
+  query: Record<string, unknown> | null | undefined,
+  defaultBaseURL?: string | undefined,
+): string {
+  const baseURL = (!this.#baseURLOverridden() && defaultBaseURL) || this.baseURL;
+  const url =
+    isAbsoluteURL(path) ?
+      new URL(path)
+    : new URL(baseURL + (baseURL.endsWith('/') && path.startsWith('/') ? path.slice(1) : path));
+
+  const defaultQuery = this.defaultQuery();
+  if (!isEmptyObj(defaultQuery)) {
+    query = { ...defaultQuery, ...query };
+  }
+
+  if (typeof query === 'object' && query && !Array.isArray(query)) {
+    url.search = this.stringifyQuery(query as Record<string, unknown>);
+  }
+
+  return url.toString();
+}
+```
+
+## Environment Examples
+
+### Production
+
+```typescript
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+  environment: 'production',
+  timeout: 30000
+});
+```
+
+### Development with Debug Logging
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'dev-key',
+  environment: 'development',
+  logLevel: 'debug'
+});
+```
+
+### Staging Environment
+
+```typescript
+const client = new Dedalus({
+  apiKey: process.env.STAGING_API_KEY,
+  baseURL: 'https://staging.api.dedaluslabs.ai'
+});
+```
+
+### Custom Proxy
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  baseURL: 'https://proxy.yourcompany.com/dedalus'
+});
+```
+
+### Multi-Environment Configuration
+
+```typescript
+const config = {
+  production: {
+    apiKey: process.env.PROD_API_KEY,
+    environment: 'production' as const,
+    timeout: 30000
+  },
+  staging: {
+    apiKey: process.env.STAGING_API_KEY,
+    baseURL: 'https://staging.api.dedaluslabs.ai',
+    timeout: 60000
+  },
+  development: {
+    apiKey: 'dev-key',
+    environment: 'development' as const,
+    logLevel: 'debug' as const
+  }
+};
+
+const env = process.env.NODE_ENV || 'development';
+const client = new Dedalus(config[env]);
+```
+
+## Changing Environments
+
+Create a new client with different environment settings using `withOptions()`:
+
+```typescript
+const prodClient = new Dedalus({
+  apiKey: 'prod-key',
+  environment: 'production'
+});
+
+// Switch to development
+const devClient = prodClient.withOptions({
+  environment: 'development',
+  baseURL: null // Clear any baseURL override
+});
+```
+
+## Base URL Override Detection
+
+The SDK tracks whether the base URL has been overridden:
+
+```typescript src/client.ts:289-291
+#baseURLOverridden(): boolean {
+  return this.baseURL !== environments[this._options.environment || 'production'];
+}
+```
+
+This is used internally to determine when to use default base URLs for specific endpoints.

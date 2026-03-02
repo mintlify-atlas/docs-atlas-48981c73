@@ -1,0 +1,307 @@
+---
+title: 'Error Types'
+description: 'Error types and error handling for the Dedalus API client'
+---
+
+## Overview
+
+The Dedalus SDK provides a comprehensive error hierarchy for handling different types of API errors. All errors extend from the base `DedalusError` class.
+
+## Error Hierarchy
+
+```
+DedalusError
+└── APIError
+    ├── APIUserAbortError
+    ├── APIConnectionError
+    │   └── APIConnectionTimeoutError
+    ├── BadRequestError (400)
+    ├── AuthenticationError (401)
+    ├── PermissionDeniedError (403)
+    ├── NotFoundError (404)
+    ├── ConflictError (409)
+    ├── UnprocessableEntityError (422)
+    ├── RateLimitError (429)
+    └── InternalServerError (500+)
+```
+
+## Base Error Types
+
+### DedalusError
+
+The base error class for all Dedalus SDK errors.
+
+```typescript
+export class DedalusError extends Error {}
+```
+
+### APIError
+
+The base class for all API-related errors. Contains status code, headers, and error response details.
+
+```typescript
+export class APIError<
+  TStatus extends number | undefined = number | undefined,
+  THeaders extends Headers | undefined = Headers | undefined,
+  TError extends Object | undefined = Object | undefined,
+> extends DedalusError {
+  readonly status: TStatus;
+  readonly headers: THeaders;
+  readonly error: TError;
+}
+```
+
+#### Properties
+
+<ResponseField name="status" type="number | undefined">
+  HTTP status code for the response that caused the error.
+</ResponseField>
+
+<ResponseField name="headers" type="Headers | undefined">
+  HTTP headers for the response that caused the error.
+</ResponseField>
+
+<ResponseField name="error" type="Object | undefined">
+  JSON body of the response that caused the error.
+</ResponseField>
+
+## Client-Side Errors
+
+### APIUserAbortError
+
+Thrown when a request is aborted by the user.
+
+```typescript
+export class APIUserAbortError extends APIError<undefined, undefined, undefined> {
+  constructor({ message }: { message?: string } = {})
+}
+```
+
+**Default Message:** `"Request was aborted."`
+
+### APIConnectionError
+
+Thrown when a connection error occurs (network failure, DNS resolution failure, etc.).
+
+```typescript
+export class APIConnectionError extends APIError<undefined, undefined, undefined> {
+  constructor({ 
+    message, 
+    cause 
+  }: { 
+    message?: string | undefined; 
+    cause?: Error | undefined 
+  })
+}
+```
+
+**Default Message:** `"Connection error."`
+
+<ResponseField name="cause" type="Error">
+  The underlying error that caused the connection failure.
+</ResponseField>
+
+### APIConnectionTimeoutError
+
+Thrown when a request times out.
+
+```typescript
+export class APIConnectionTimeoutError extends APIConnectionError {
+  constructor({ message }: { message?: string } = {})
+}
+```
+
+**Default Message:** `"Request timed out."`
+
+## HTTP Status Code Errors
+
+### BadRequestError (400)
+
+The request was invalid or malformed.
+
+```typescript
+export class BadRequestError extends APIError<400, Headers> {}
+```
+
+### AuthenticationError (401)
+
+Authentication credentials are missing or invalid.
+
+```typescript
+export class AuthenticationError extends APIError<401, Headers> {}
+```
+
+### PermissionDeniedError (403)
+
+The authenticated user does not have permission to access the resource.
+
+```typescript
+export class PermissionDeniedError extends APIError<403, Headers> {}
+```
+
+### NotFoundError (404)
+
+The requested resource was not found.
+
+```typescript
+export class NotFoundError extends APIError<404, Headers> {}
+```
+
+### ConflictError (409)
+
+The request conflicts with the current state of the server.
+
+```typescript
+export class ConflictError extends APIError<409, Headers> {}
+```
+
+### UnprocessableEntityError (422)
+
+The request was well-formed but contains semantic errors.
+
+```typescript
+export class UnprocessableEntityError extends APIError<422, Headers> {}
+```
+
+### RateLimitError (429)
+
+The rate limit for the API has been exceeded.
+
+```typescript
+export class RateLimitError extends APIError<429, Headers> {}
+```
+
+### InternalServerError (500+)
+
+The server encountered an internal error.
+
+```typescript
+export class InternalServerError extends APIError<number, Headers> {}
+```
+
+## Error Handling Examples
+
+### Basic Error Handling
+
+```typescript
+import { Dedalus, APIError, RateLimitError } from '@dedaluscloud/dedalus-api';
+
+const client = new Dedalus({ apiKey: 'your-api-key' });
+
+try {
+  const response = await client.chat.completions.create({
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }],
+  });
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    console.error('Rate limit exceeded:', error.status, error.headers);
+  } else if (error instanceof APIError) {
+    console.error('API error:', error.status, error.error);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+### Handling Specific Status Codes
+
+```typescript
+import { 
+  AuthenticationError, 
+  NotFoundError, 
+  InternalServerError 
+} from '@dedaluscloud/dedalus-api';
+
+try {
+  const model = await client.models.retrieve('model-id');
+} catch (error) {
+  if (error instanceof AuthenticationError) {
+    console.error('Invalid API key');
+  } else if (error instanceof NotFoundError) {
+    console.error('Model not found');
+  } else if (error instanceof InternalServerError) {
+    console.error('Server error - please retry');
+  }
+}
+```
+
+### Accessing Error Details
+
+```typescript
+try {
+  const response = await client.chat.completions.create(params);
+} catch (error) {
+  if (error instanceof APIError) {
+    console.log('Status:', error.status);
+    console.log('Headers:', error.headers);
+    console.log('Error body:', error.error);
+    console.log('Message:', error.message);
+  }
+}
+```
+
+### Handling Connection Errors
+
+```typescript
+import { 
+  APIConnectionError, 
+  APIConnectionTimeoutError 
+} from '@dedaluscloud/dedalus-api';
+
+try {
+  const response = await client.chat.completions.create(params);
+} catch (error) {
+  if (error instanceof APIConnectionTimeoutError) {
+    console.error('Request timed out - consider increasing timeout');
+  } else if (error instanceof APIConnectionError) {
+    console.error('Network error:', error.cause);
+  }
+}
+```
+
+## Retry Behavior
+
+The client automatically retries requests for certain error conditions:
+
+- **Status 408** (Request Timeout)
+- **Status 409** (Conflict)
+- **Status 429** (Rate Limit)
+- **Status 500+** (Server Errors)
+- **Connection Errors**
+- **Connection Timeouts**
+
+The number of retries is controlled by the `maxRetries` option (default: 2).
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  maxRetries: 3, // Retry up to 3 times
+});
+```
+
+## Parser Errors
+
+Additional errors for streaming response parsing:
+
+```typescript
+import { 
+  LengthFinishReasonError, 
+  ContentFilterFinishReasonError 
+} from '@dedaluscloud/dedalus-api';
+```
+
+<ResponseField name="LengthFinishReasonError" type="class">
+  Thrown when a completion is truncated due to token limit.
+</ResponseField>
+
+<ResponseField name="ContentFilterFinishReasonError" type="class">
+  Thrown when a completion is filtered due to content policy.
+</ResponseField>
+
+## See Also
+
+- [ClientOptions](/api-reference/types/client-options)
+- [Authentication](/core-concepts/authentication)
+- [Error Handling](/core-concepts/error-handling)
+- [Retry Configuration](/core-concepts/retries-timeouts)

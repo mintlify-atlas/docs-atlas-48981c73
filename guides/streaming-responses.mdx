@@ -1,0 +1,293 @@
+---
+title: 'Streaming Responses'
+description: 'Learn how to use Server-Sent Events (SSE) streaming for real-time chat completions'
+icon: 'water'
+---
+
+## Overview
+
+The Dedalus SDK provides robust support for streaming responses using Server-Sent Events (SSE). This allows you to receive incremental chunks of the completion in real-time, enabling better user experiences for long-running requests.
+
+## Basic Streaming
+
+To enable streaming, set the `stream` parameter to `true` in your completion request:
+
+<CodeGroup>
+
+```typescript Node.js
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [
+    { role: 'system', content: 'You are Stephen Dedalus. Respond in morose Joycean malaise.' },
+    { role: 'user', content: 'What do you think of artificial intelligence?' },
+  ],
+});
+
+for await (const chunk of stream) {
+  console.log(chunk.id);
+  // Access delta content from the chunk
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    process.stdout.write(delta);
+  }
+}
+```
+
+```typescript Bun
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Tell me a story' },
+  ],
+});
+
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    console.write(delta);
+  }
+}
+```
+
+```typescript Deno
+import Dedalus from 'npm:dedalus-labs';
+
+const client = new Dedalus();
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [
+    { role: 'user', content: 'Write a haiku about technology' },
+  ],
+});
+
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    await Deno.stdout.write(new TextEncoder().encode(delta));
+  }
+}
+```
+
+</CodeGroup>
+
+## Canceling Streams
+
+You can cancel a stream in two ways:
+
+### Using break
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [{ role: 'user', content: 'Write a long essay' }],
+});
+
+let tokenCount = 0;
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    process.stdout.write(delta);
+    tokenCount++;
+  }
+  
+  // Stop after 100 tokens
+  if (tokenCount >= 100) {
+    break;
+  }
+}
+```
+
+### Using controller.abort()
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [{ role: 'user', content: 'Write a long story' }],
+});
+
+// Cancel after 5 seconds
+setTimeout(() => {
+  stream.controller.abort();
+}, 5000);
+
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    process.stdout.write(delta);
+  }
+}
+```
+
+## Stream Chunk Structure
+
+Each chunk in the stream has the following structure:
+
+```typescript
+interface StreamChunk {
+  id: string;                    // Unique identifier for the completion
+  object: 'chat.completion.chunk';
+  created: number;               // Unix timestamp
+  model: string;                 // Model used
+  choices: Array<{
+    index: number;
+    delta: {
+      role?: 'assistant' | 'user' | 'system' | 'tool';
+      content?: string | null;
+      tool_calls?: Array<ToolCall>;
+    };
+    finish_reason?: 'stop' | 'length' | 'tool_calls' | 'content_filter' | null;
+  }>;
+  usage?: CompletionUsage | null; // Only in the final chunk
+}
+```
+
+## Working with Usage Statistics
+
+Usage statistics are included in the final chunk when using stream options:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  stream_options: { include_usage: true },
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.usage) {
+    console.log('Total tokens:', chunk.usage.total_tokens);
+    console.log('Prompt tokens:', chunk.usage.prompt_tokens);
+    console.log('Completion tokens:', chunk.usage.completion_tokens);
+  }
+}
+```
+
+## Stream Utilities
+
+### Converting to ReadableStream
+
+You can convert a Stream to a standard ReadableStream:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+
+const readableStream = stream.toReadableStream();
+
+// Use with Response for streaming HTTP endpoints
+return new Response(readableStream, {
+  headers: { 'Content-Type': 'text/event-stream' },
+});
+```
+
+### Splitting Streams with tee()
+
+You can split a stream into two independent streams:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+
+const [stream1, stream2] = stream.tee();
+
+// Process both streams independently
+const process1 = async () => {
+  for await (const chunk of stream1) {
+    // Process first stream
+  }
+};
+
+const process2 = async () => {
+  for await (const chunk of stream2) {
+    // Process second stream
+  }
+};
+
+await Promise.all([process1(), process2()]);
+```
+
+## Error Handling
+
+<Warning>
+Always handle errors when working with streams to prevent unhandled promise rejections.
+</Warning>
+
+```typescript
+try {
+  const stream = await client.chat.completions.create({
+    model: 'openai/gpt-5-nano',
+    stream: true,
+    messages: [{ role: 'user', content: 'Hello' }],
+  });
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (delta) {
+      process.stdout.write(delta);
+    }
+  }
+} catch (error) {
+  if (error instanceof Dedalus.APIError) {
+    console.error('API Error:', error.status, error.message);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Server-Sent Events Format
+
+The streaming endpoint returns Server-Sent Events (SSE) in this format:
+
+```
+data: {"id":"cmpl_123","choices":[{"index":0,"delta":{"content":"Hi"}}]}
+data: {"id":"cmpl_123","choices":[{"index":0,"delta":{"content":" there!"}}]}
+data: [DONE]
+```
+
+The SDK automatically handles parsing these events into typed objects.
+
+<Note>
+If the user calls `stream.controller.abort()` or breaks from the loop, the SDK exits gracefully without throwing errors.
+</Note>
+
+## Best Practices
+
+<Steps>
+  <Step title="Buffer small chunks">
+    Consider buffering very small chunks before displaying to avoid flickering in UI.
+  </Step>
+  
+  <Step title="Handle network errors">
+    Implement retry logic for network failures during streaming.
+  </Step>
+  
+  <Step title="Clean up resources">
+    Always ensure streams are properly closed or aborted when no longer needed.
+  </Step>
+  
+  <Step title="Monitor usage">
+    Use `stream_options` to track token usage for billing and rate limiting.
+  </Step>
+</Steps>

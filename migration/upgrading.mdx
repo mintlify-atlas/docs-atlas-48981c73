@@ -1,0 +1,562 @@
+---
+title: Upgrading Guide
+description: Best practices and tips for migrating between SDK versions
+---
+
+This guide helps you upgrade between versions of the Dedalus TypeScript SDK safely and efficiently.
+
+## Before You Upgrade
+
+### 1. Review the Changelog
+
+Always check the [Changelog](/migration/changelog) for breaking changes and new features between your current version and the target version.
+
+### 2. Check Your Current Version
+
+```bash
+npm list dedalus-labs
+```
+
+### 3. Review Your Dependencies
+
+```json
+// package.json
+{
+  "dependencies": {
+    "dedalus-labs": "^0.1.0-alpha.8",
+    "dedalus-labs-mcp": "^0.1.0-alpha.8" // If using MCP server
+  }
+}
+```
+
+### 4. Backup Your Code
+
+Create a git branch or backup before upgrading:
+
+```bash
+git checkout -b upgrade-dedalus-sdk
+```
+
+## Upgrade Process
+
+### Standard Upgrade
+
+```bash
+# Update to latest version
+npm install dedalus-labs@latest
+
+# If using MCP server
+npm install dedalus-labs-mcp@latest
+```
+
+### Upgrade to Specific Version
+
+```bash
+npm install dedalus-labs@0.1.0-alpha.8
+```
+
+### Upgrade with Clean Install
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+## Testing After Upgrade
+
+### 1. Type Checking
+
+If using TypeScript:
+
+```bash
+npx tsc --noEmit
+```
+
+### 2. Run Tests
+
+```bash
+npm test
+```
+
+### 3. Manual Testing
+
+Test critical paths in your application:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY
+});
+
+// Test basic completion
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }]
+});
+
+console.log('SDK working:', completion.id);
+```
+
+## Common Migration Scenarios
+
+### Migrating to DedalusRunner
+
+If you have custom tool execution logic, consider migrating to `DedalusRunner`:
+
+#### Before:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({ apiKey: 'key' });
+
+let messages = [{ role: 'user', content: 'What is 2+2?' }];
+
+while (true) {
+  const response = await client.chat.completions.create({
+    model: 'openai/gpt-4',
+    messages,
+    tools: [/* your tools */]
+  });
+  
+  const message = response.choices[0].message;
+  messages.push(message);
+  
+  if (!message.tool_calls) break;
+  
+  // Manual tool execution...
+  for (const toolCall of message.tool_calls) {
+    // Execute tool and add result to messages
+  }
+}
+```
+
+#### After:
+
+```typescript
+import { Dedalus, DedalusRunner } from 'dedalus-labs';
+
+const client = new Dedalus({ apiKey: 'key' });
+const runner = new DedalusRunner(client);
+
+const result = await runner.run({
+  model: 'openai/gpt-4',
+  input: 'What is 2+2?',
+  tools: [/* your tools */],
+  maxSteps: 10
+});
+
+console.log(result.output);
+```
+
+### Migrating to MCP Server
+
+If you expose Dedalus functionality to AI applications:
+
+#### Before:
+
+```typescript
+// Custom server implementation
+const server = createServer();
+server.addTool('create_completion', async (params) => {
+  const client = new Dedalus({ apiKey: 'key' });
+  return await client.chat.completions.create(params);
+});
+```
+
+#### After:
+
+```bash
+# Use the official MCP server
+npx -y dedalus-labs-mcp --tools=all
+```
+
+Or programmatically:
+
+```typescript
+import { server, initMcpServer } from 'dedalus-labs-mcp/server';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+initMcpServer({ server });
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+### Migrating Model Specifications
+
+The SDK now supports more flexible model specifications:
+
+#### Before:
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: 'gpt-4',
+  // ...
+});
+```
+
+#### After:
+
+```typescript
+// More explicit provider/model format
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  // ...
+});
+
+// Or use model objects
+const completion = await client.chat.completions.create({
+  model: { model: 'gpt-4', provider: 'openai' },
+  // ...
+});
+
+// Multi-model support
+const completion = await client.chat.completions.create({
+  model: [
+    'anthropic/claude-3-5-sonnet-20241022',
+    'openai/gpt-4'
+  ],
+  // ...
+});
+```
+
+### Migrating Response Format
+
+New structured output support:
+
+#### Before:
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Return JSON' }]
+});
+
+const data = JSON.parse(completion.choices[0].message.content);
+```
+
+#### After:
+
+```typescript
+import { z } from 'zod';
+import { toSchema } from 'dedalus-labs/runner';
+
+const schema = z.object({
+  name: z.string(),
+  age: z.number()
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Return structured data' }],
+  response_format: toSchema(schema)
+});
+
+// Guaranteed to match schema
+const data = JSON.parse(completion.choices[0].message.content);
+```
+
+### Migrating to Streaming
+
+Improved streaming support:
+
+#### Before:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  stream: true
+});
+
+for await (const chunk of stream) {
+  const content = chunk.choices[0]?.delta?.content;
+  if (content) process.stdout.write(content);
+}
+```
+
+#### After (same, but more robust):
+
+```typescript
+import type { Stream } from 'dedalus-labs/core/streaming';
+import type { StreamChunk } from 'dedalus-labs/resources/chat/completions';
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+  stream: true
+}) as Stream<StreamChunk>;
+
+for await (const chunk of stream) {
+  const content = chunk.choices?.[0]?.delta?.content;
+  if (content) process.stdout.write(content);
+}
+```
+
+## Breaking Changes by Version
+
+### Alpha 8
+
+**MCP Server Tool Names**
+
+Some MCP tools have been renamed for consistency:
+- Tool names now use snake_case consistently
+- Resource paths use dot notation (e.g., `chat.completions`)
+
+**Type Changes**
+
+- `DedalusModel` and `Model` types are now separate
+- Model specifications are more strictly typed
+
+**Migration:**
+
+```typescript
+// Before
+import type { Model } from 'dedalus-labs';
+
+// After
+import type { DedalusModel } from 'dedalus-labs';
+```
+
+### Alpha 7
+
+No breaking changes.
+
+### Alpha 6
+
+**Messages Parameter**
+
+The `messages` parameter can now be `null`:
+
+```typescript
+// Now valid
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: null
+});
+```
+
+### Alpha 5
+
+**MCP Server Configuration**
+
+MCP server options have changed:
+
+```typescript
+// Before
+initMcpServer({ server, includeAllTools: true });
+
+// After
+initMcpServer({
+  server,
+  mcpOptions: { includeAllTools: true }
+});
+```
+
+## Deprecation Warnings
+
+### returnIntent Parameter
+
+The `returnIntent` parameter in `DedalusRunner.run()` is deprecated:
+
+```typescript
+// Deprecated
+const result = await runner.run({
+  model: 'openai/gpt-4',
+  input: 'Hello',
+  returnIntent: true // Deprecated
+});
+
+// Use instead
+const result = await runner.run({
+  model: 'openai/gpt-4',
+  input: 'Hello',
+  autoExecuteTools: false // Inspect tool_calls without executing
+});
+```
+
+## Environment Variables
+
+### New in Alpha 8
+
+- `DEDALUS_LOG` - Set log level (debug, info, warn, error, off)
+
+### Existing Variables
+
+- `DEDALUS_API_KEY` - Your API key (required)
+- `DEDALUS_ENVIRONMENT` - Environment (production, development)
+- `DEDALUS_BASE_URL` - Custom API base URL
+
+## Best Practices
+
+### 1. Pin Versions in Production
+
+```json
+{
+  "dependencies": {
+    "dedalus-labs": "0.1.0-alpha.8" // Exact version, no caret
+  }
+}
+```
+
+### 2. Test in Staging First
+
+Always test upgrades in a staging environment before production.
+
+### 3. Update All Related Packages
+
+```bash
+# Update both SDK and MCP server together
+npm install dedalus-labs@latest dedalus-labs-mcp@latest
+```
+
+### 4. Review Type Changes
+
+If using TypeScript, review all type errors after upgrading:
+
+```bash
+npx tsc --noEmit --listFiles | grep dedalus
+```
+
+### 5. Monitor Logs
+
+Enable verbose logging during migration:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'key',
+  logLevel: 'debug'
+});
+```
+
+### 6. Use Feature Flags
+
+Gradually roll out new features:
+
+```typescript
+const USE_RUNNER = process.env.FEATURE_USE_RUNNER === 'true';
+
+if (USE_RUNNER) {
+  const runner = new DedalusRunner(client);
+  result = await runner.run(params);
+} else {
+  // Old implementation
+}
+```
+
+## Rollback Strategy
+
+If you encounter issues:
+
+### 1. Revert Package Version
+
+```bash
+npm install dedalus-labs@0.1.0-alpha.7 # Previous working version
+```
+
+### 2. Revert Git Changes
+
+```bash
+git checkout main
+git branch -D upgrade-dedalus-sdk
+```
+
+### 3. Clear Cache
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+## Getting Help
+
+If you run into issues:
+
+1. Check the [Changelog](/migration/changelog) for known issues
+2. Review [API documentation](/api-reference) for updated signatures
+3. Search [GitHub issues](https://github.com/dedalus-labs/dedalus-sdk-typescript/issues)
+4. Open a new issue with:
+   - Current version
+   - Target version
+   - Error message
+   - Minimal reproduction code
+
+## Monitoring After Upgrade
+
+### 1. Watch Error Rates
+
+Monitor your error logs for new patterns:
+
+```typescript
+try {
+  const result = await client.chat.completions.create(params);
+} catch (error) {
+  console.error('Dedalus SDK error:', error);
+  // Send to your monitoring system
+  monitoring.captureException(error);
+}
+```
+
+### 2. Track Performance
+
+```typescript
+const start = Date.now();
+const result = await client.chat.completions.create(params);
+const duration = Date.now() - start;
+
+metrics.record('dedalus.completion.duration', duration);
+```
+
+### 3. Verify Tool Execution
+
+If using DedalusRunner:
+
+```typescript
+const result = await runner.run(params);
+
+console.log('Steps used:', result.stepsUsed);
+console.log('Tools called:', result.toolsCalled);
+
+// Alert if unusual
+if (result.stepsUsed > 8) {
+  alerts.send('High step count in runner');
+}
+```
+
+## Version Support Policy
+
+The Dedalus SDK is currently in alpha. Version support:
+
+- **Latest alpha**: Fully supported
+- **Previous alpha**: Bug fixes only
+- **Older alphas**: No support
+
+Plan to upgrade regularly to stay on supported versions.
+
+## Future Breaking Changes
+
+Be aware of upcoming changes:
+
+### Beta Release
+
+- API stabilization
+- Potential breaking changes to experimental features
+- Migration guide will be provided
+
+### V1.0 Release
+
+- Stable API
+- Semantic versioning
+- Clear deprecation policy
+
+## Feedback
+
+Help us improve the SDK:
+
+- Report migration issues
+- Suggest API improvements
+- Share your use cases
+
+[Open an issue](https://github.com/dedalus-labs/dedalus-sdk-typescript/issues/new)

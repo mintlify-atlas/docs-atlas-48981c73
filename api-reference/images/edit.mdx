@@ -1,0 +1,135 @@
+---
+title: 'Edit Image'
+api: 'POST /v1/images/edits'
+---
+
+Edit images using inpainting. Supports DALL-E 2 and GPT Image 1. Upload an image and optionally a mask to indicate which areas to regenerate based on the prompt.
+
+## Method
+
+```typescript
+client.images.edit(params)
+```
+
+## Request Parameters
+
+<ParamField body="image" type="File" required>
+  The image to edit. Must be a valid PNG file, less than 4MB, and square. If mask is not provided, image must have transparency, which will be used as the mask.
+</ParamField>
+
+<ParamField body="prompt" type="string" required>
+  A text description of the desired image(s). The maximum length is 1000 characters.
+</ParamField>
+
+<ParamField body="mask" type="File">
+  An additional image whose fully transparent areas (e.g. where alpha is zero) indicate where `image` should be edited. Must be a valid PNG file, less than 4MB, and have the same dimensions as `image`.
+</ParamField>
+
+<ParamField body="model" type="string">
+  The model to use for image editing. Supported models:
+  - `openai/dall-e-2`
+  - `openai/gpt-image-1`
+</ParamField>
+
+<ParamField body="n" type="number">
+  The number of images to generate. Must be between 1 and 10.
+  
+  Default: `1`
+</ParamField>
+
+<ParamField body="size" type="string">
+  The size of the generated images. Must be one of `256x256`, `512x512`, or `1024x1024`.
+  
+  Default: `1024x1024`
+</ParamField>
+
+<ParamField body="response_format" type="string">
+  The format in which the generated images are returned:
+  - `url` - URLs valid for 60 minutes
+  - `b64_json` - Base64-encoded JSON
+  
+  Default: `url`
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier representing your end-user, which can help OpenAI monitor and detect abuse.
+</ParamField>
+
+## Response
+
+<ResponseField name="created" type="number" required>
+  Unix timestamp when images were created.
+</ResponseField>
+
+<ResponseField name="data" type="array" required>
+  List of generated images.
+  
+  <Expandable title="Image Object">
+    <ResponseField name="url" type="string">
+      URL of the generated image (if `response_format=url`).
+    </ResponseField>
+    
+    <ResponseField name="b64_json" type="string">
+      Base64-encoded image data (if `response_format=b64_json`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```typescript Edit with Mask
+import fs from "fs";
+
+const image = await client.images.edit({
+  image: fs.createReadStream("original.png"),
+  mask: fs.createReadStream("mask.png"),
+  prompt: "A sunlit indoor lounge area with a pool",
+  model: "openai/dall-e-2",
+  n: 1,
+  size: "1024x1024"
+});
+
+console.log(image.data[0].url);
+```
+
+```typescript Edit with Transparency
+const image = await client.images.edit({
+  image: fs.createReadStream("image-with-transparency.png"),
+  prompt: "A beautiful sunset background",
+  model: "openai/dall-e-2"
+});
+
+console.log(image.data[0].url);
+```
+
+```typescript Multiple Variations
+const images = await client.images.edit({
+  image: fs.createReadStream("room.png"),
+  mask: fs.createReadStream("room-mask.png"),
+  prompt: "A modern minimalist living room with plants",
+  model: "openai/dall-e-2",
+  n: 3,
+  size: "512x512"
+});
+
+images.data.forEach((img, i) => {
+  console.log(`Variation ${i + 1}: ${img.url}`);
+});
+```
+
+```typescript Save as Base64
+const image = await client.images.edit({
+  image: fs.createReadStream("product.png"),
+  mask: fs.createReadStream("product-mask.png"),
+  prompt: "Replace the background with a beach scene",
+  model: "openai/gpt-image-1",
+  response_format: "b64_json"
+});
+
+const buffer = Buffer.from(image.data[0].b64_json, 'base64');
+await fs.promises.writeFile("edited-product.png", buffer);
+```
+
+</CodeGroup>

@@ -1,0 +1,573 @@
+---
+title: Custom Fetch Configuration
+description: Configure custom fetch clients, proxies, and request options
+---
+
+The Dedalus SDK allows you to customize the underlying `fetch` implementation and provide custom request options for advanced use cases like proxy configuration, custom headers, and runtime-specific networking.
+
+## Custom Fetch Function
+
+### Using a Custom Fetch Implementation
+
+By default, the SDK uses the global `fetch` function. You can override this with your own implementation:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import fetch from 'node-fetch';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetch: fetch as any
+});
+```
+
+### Polyfilling Global Fetch
+
+Alternatively, you can polyfill the global `fetch`:
+
+```typescript
+import fetch from 'node-fetch';
+
+globalThis.fetch = fetch as any;
+
+// Now the SDK will use your polyfilled fetch
+import Dedalus from 'dedalus-labs';
+const client = new Dedalus({ apiKey: 'your-api-key' });
+```
+
+## Fetch Options
+
+### Client-Level Options
+
+Set default fetch options for all requests:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    // Standard RequestInit options
+    headers: {
+      'Custom-Header': 'value'
+    },
+    // Runtime-specific options (see below)
+  }
+});
+```
+
+### Per-Request Options
+
+Override fetch options for individual requests:
+
+```typescript
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }]
+  },
+  {
+    fetchOptions: {
+      headers: {
+        'X-Request-ID': 'unique-id-123'
+      }
+    }
+  }
+);
+```
+
+Per-request options override client-level options.
+
+## Proxy Configuration
+
+Different JavaScript runtimes have different proxy mechanisms:
+
+### Node.js (using undici)
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import { ProxyAgent } from 'undici';
+
+const proxyAgent = new ProxyAgent('http://proxy.example.com:8080');
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    dispatcher: proxyAgent
+  }
+});
+```
+
+With authentication:
+
+```typescript
+import { ProxyAgent } from 'undici';
+
+const proxyAgent = new ProxyAgent({
+  uri: 'http://proxy.example.com:8080',
+  auth: 'username:password'
+});
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    dispatcher: proxyAgent
+  }
+});
+```
+
+### Bun
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    proxy: 'http://proxy.example.com:8080'
+  }
+});
+```
+
+With authentication:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    proxy: 'http://username:password@proxy.example.com:8080'
+  }
+});
+```
+
+### Deno
+
+```typescript
+import Dedalus from 'npm:dedalus-labs';
+
+const httpClient = Deno.createHttpClient({
+  proxy: { url: 'http://proxy.example.com:8080' }
+});
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    client: httpClient
+  }
+});
+```
+
+With authentication:
+
+```typescript
+const httpClient = Deno.createHttpClient({
+  proxy: {
+    url: 'http://proxy.example.com:8080',
+    basicAuth: { username: 'user', password: 'pass' }
+  }
+});
+```
+
+### Cloudflare Workers
+
+Cloudflare Workers don't support proxies directly, but you can use a custom fetch:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const customFetch = async (url: RequestInfo, init?: RequestInit) => {
+  // Custom logic here
+  return fetch(url, init);
+};
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetch: customFetch
+});
+```
+
+## Advanced Fetch Customization
+
+### Request Interceptor
+
+Create a wrapper to intercept all requests:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const interceptedFetch = async (
+  url: RequestInfo,
+  init?: RequestInit
+): Promise<Response> => {
+  console.log('Request:', url, init);
+  
+  // Modify request
+  const modifiedInit = {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'X-Custom-Header': 'value'
+    }
+  };
+  
+  // Make request
+  const response = await fetch(url, modifiedInit);
+  
+  console.log('Response:', response.status, response.statusText);
+  
+  return response;
+};
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetch: interceptedFetch
+});
+```
+
+### Retry Logic
+
+Add custom retry logic:
+
+```typescript
+const fetchWithRetry = async (
+  url: RequestInfo,
+  init?: RequestInit,
+  maxRetries = 3
+): Promise<Response> => {
+  let lastError;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, init);
+      if (response.ok || response.status < 500) {
+        return response;
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+  
+  throw lastError;
+};
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetch: fetchWithRetry
+});
+```
+
+Note: The SDK already has built-in retry logic. Use `maxRetries` option instead:
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  maxRetries: 3 // Default is 2
+});
+```
+
+### Request/Response Logging
+
+```typescript
+const loggingFetch = async (
+  url: RequestInfo,
+  init?: RequestInit
+): Promise<Response> => {
+  const startTime = Date.now();
+  
+  console.log('→ Request:', {
+    url: url.toString(),
+    method: init?.method || 'GET',
+    headers: init?.headers
+  });
+  
+  const response = await fetch(url, init);
+  
+  const duration = Date.now() - startTime;
+  console.log('← Response:', {
+    status: response.status,
+    duration: `${duration}ms`,
+    headers: Object.fromEntries(response.headers.entries())
+  });
+  
+  return response;
+};
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetch: loggingFetch
+});
+```
+
+## SSL/TLS Configuration
+
+### Node.js Custom Certificates
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import https from 'https';
+import { Agent } from 'undici';
+import fs from 'fs';
+
+const agent = new Agent({
+  connect: {
+    ca: fs.readFileSync('./custom-ca.pem'),
+    cert: fs.readFileSync('./client-cert.pem'),
+    key: fs.readFileSync('./client-key.pem')
+  }
+});
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    dispatcher: agent
+  }
+});
+```
+
+### Disable SSL Verification (NOT RECOMMENDED)
+
+```typescript
+import { Agent } from 'undici';
+
+const agent = new Agent({
+  connect: {
+    rejectUnauthorized: false // DANGEROUS: Only for testing!
+  }
+});
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    dispatcher: agent
+  }
+});
+```
+
+## Timeout Configuration
+
+### Client-Level Timeout
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  timeout: 30000 // 30 seconds (default is 60000)
+});
+```
+
+### Per-Request Timeout
+
+```typescript
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }]
+  },
+  {
+    timeout: 10000 // 10 seconds
+  }
+);
+```
+
+### AbortController
+
+```typescript
+const controller = new AbortController();
+
+// Cancel after 5 seconds
+setTimeout(() => controller.abort(), 5000);
+
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }]
+  },
+  {
+    signal: controller.signal
+  }
+);
+```
+
+## Custom Headers
+
+### Global Headers
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  defaultHeaders: {
+    'X-Custom-Header': 'value',
+    'User-Agent': 'MyApp/1.0'
+  }
+});
+```
+
+### Per-Request Headers
+
+```typescript
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }]
+  },
+  {
+    headers: {
+      'X-Request-ID': 'unique-id-123'
+    }
+  }
+);
+```
+
+### Remove Default Header
+
+```typescript
+const completion = await client.chat.completions.create(
+  {
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }]
+  },
+  {
+    headers: {
+      'User-Agent': null // Removes the header
+    }
+  }
+);
+```
+
+## Keep-Alive and Connection Pooling
+
+### Node.js (undici)
+
+```typescript
+import { Agent } from 'undici';
+
+const agent = new Agent({
+  connections: 100, // Maximum connections
+  pipelining: 10    // Requests per connection
+});
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetchOptions: {
+    dispatcher: agent
+  }
+});
+```
+
+## Environment-Specific Examples
+
+### Next.js API Route
+
+```typescript
+// pages/api/chat.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import Dedalus from 'dedalus-labs';
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const client = new Dedalus({
+    apiKey: process.env.DEDALUS_API_KEY,
+    fetchOptions: {
+      headers: {
+        'X-Request-ID': req.headers['x-request-id']
+      }
+    }
+  });
+  
+  const completion = await client.chat.completions.create({
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: req.body.message }]
+  });
+  
+  res.json(completion);
+}
+```
+
+### Cloudflare Workers
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const client = new Dedalus({
+      apiKey: env.DEDALUS_API_KEY,
+      fetch: fetch.bind(globalThis) // Ensure correct binding
+    });
+    
+    const completion = await client.chat.completions.create({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: 'Hello' }]
+    });
+    
+    return Response.json(completion);
+  }
+};
+```
+
+### Deno Deploy
+
+```typescript
+import Dedalus from 'npm:dedalus-labs';
+
+Deno.serve(async (req) => {
+  const client = new Dedalus({
+    apiKey: Deno.env.get('DEDALUS_API_KEY')!
+  });
+  
+  const completion = await client.chat.completions.create({
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }]
+  });
+  
+  return Response.json(completion);
+});
+```
+
+## Best Practices
+
+1. **Reuse client instances**: Create one client and reuse it across requests
+2. **Use connection pooling**: Configure agents for better performance
+3. **Set appropriate timeouts**: Balance between user experience and reliability
+4. **Secure proxy credentials**: Never hardcode credentials
+5. **Log strategically**: Don't log sensitive data like API keys
+6. **Handle fetch errors**: Implement proper error handling
+7. **Test custom configurations**: Verify behavior in your target environment
+
+## Troubleshooting
+
+### "fetch is not defined"
+
+Ensure you're on a supported runtime or provide a fetch implementation:
+
+```typescript
+import fetch from 'node-fetch';
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  fetch: fetch as any
+});
+```
+
+### Proxy Not Working
+
+Verify you're using the correct proxy configuration for your runtime:
+- Node.js: Use `dispatcher` with undici's `ProxyAgent`
+- Bun: Use `proxy` option
+- Deno: Use `client` with `Deno.createHttpClient`
+
+### SSL Certificate Errors
+
+For custom certificates, ensure the file paths are correct and the certificates are valid.
+
+### Timeout Issues
+
+If requests are timing out:
+1. Increase the timeout value
+2. Check network connectivity
+3. Verify proxy configuration
+4. Enable logging to debug

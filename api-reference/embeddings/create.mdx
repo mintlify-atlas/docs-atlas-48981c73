@@ -1,0 +1,170 @@
+---
+title: "Create Embeddings"
+api: "POST /v1/embeddings"
+description: "Create embeddings using the configured provider"
+---
+
+## Method
+
+```typescript
+client.embeddings.create(params)
+```
+
+Create embeddings for input text using the specified model. Embeddings are numerical representations of text that can be used for semantic search, clustering, recommendations, and other machine learning tasks.
+
+## Parameters
+
+<ParamField body="input" type="string | string[] | number[] | number[][]" required>
+  Input text to embed, encoded as a string or array of tokens. To embed multiple inputs in a single request, pass an array of strings or array of token arrays.
+  
+  - The input must not exceed the max input tokens for the model (8192 tokens for all embedding models)
+  - Cannot be an empty string
+  - Any array must be 2048 dimensions or less
+  - Maximum of 300,000 tokens summed across all inputs in a single request
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  ID of the model to use. Common values:
+  - `text-embedding-ada-002`
+  - `text-embedding-3-small`
+  - `text-embedding-3-large`
+  
+  You can also pass any custom model string supported by your provider.
+</ParamField>
+
+<ParamField body="dimensions" type="number">
+  The number of dimensions the resulting output embeddings should have. Only supported in `text-embedding-3` and later models.
+</ParamField>
+
+<ParamField body="encoding_format" type="'float' | 'base64'">
+  The format to return the embeddings in. Can be either `float` or `base64`.
+  
+  Default: `float`
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier representing your end-user, which can help monitor and detect abuse.
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="array" required>
+  List of embedding objects.
+  
+  <Expandable title="data object">
+    <ResponseField name="embedding" type="number[] | string">
+      The embedding vector as an array of floats, or a base64-encoded string if `encoding_format` is set to `base64`.
+    </ResponseField>
+    
+    <ResponseField name="index" type="number">
+      The index of the embedding in the list, corresponding to the position in the input array.
+    </ResponseField>
+    
+    <ResponseField name="object" type="string">
+      The object type, always `"embedding"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  The model used for generating embeddings.
+</ResponseField>
+
+<ResponseField name="usage" type="object" required>
+  Usage statistics for the request.
+  
+  <Expandable title="usage object">
+    <ResponseField name="prompt_tokens" type="number">
+      Number of tokens in the input.
+    </ResponseField>
+    
+    <ResponseField name="total_tokens" type="number">
+      Total number of tokens used.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  The object type, always `"list"`.
+</ResponseField>
+
+## Example
+
+### Single text input
+
+```typescript
+const response = await client.embeddings.create({
+  model: "text-embedding-3-small",
+  input: "The quick brown fox jumps over the lazy dog"
+});
+
+console.log(response.data[0].embedding);
+// [0.0023, -0.0091, 0.0234, ...]
+```
+
+### Multiple text inputs
+
+```typescript
+const response = await client.embeddings.create({
+  model: "text-embedding-3-small",
+  input: [
+    "First document to embed",
+    "Second document to embed",
+    "Third document to embed"
+  ]
+});
+
+console.log(response.data.length); // 3
+console.log(response.usage.total_tokens);
+```
+
+### With custom dimensions
+
+```typescript
+const response = await client.embeddings.create({
+  model: "text-embedding-3-large",
+  input: "Reduce dimensionality for storage",
+  dimensions: 256
+});
+
+console.log(response.data[0].embedding.length); // 256
+```
+
+### Base64 encoding
+
+```typescript
+const response = await client.embeddings.create({
+  model: "text-embedding-3-small",
+  input: "Get embeddings as base64",
+  encoding_format: "base64"
+});
+
+console.log(typeof response.data[0].embedding); // "string"
+```
+
+## Response Example
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "index": 0,
+      "embedding": [
+        0.0023064255,
+        -0.009327292,
+        0.015797347,
+        -0.0077559738,
+        -0.004068857,
+        // ... (1536 dimensions for text-embedding-3-small)
+      ]
+    }
+  ],
+  "model": "text-embedding-3-small",
+  "usage": {
+    "prompt_tokens": 8,
+    "total_tokens": 8
+  }
+}
+```

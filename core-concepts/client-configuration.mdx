@@ -1,0 +1,198 @@
+---
+title: 'Client Configuration'
+description: 'Configure the Dedalus client with authentication, base URLs, and request options'
+---
+
+The Dedalus SDK is configured through the `ClientOptions` interface when instantiating the client. All options are optional and can be set via constructor parameters or environment variables.
+
+## Basic Configuration
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  environment: 'production',
+  timeout: 30000,
+  maxRetries: 2
+});
+```
+
+## ClientOptions Interface
+
+<ParamField path="apiKey" type="string | null">
+  API key for Bearer token authentication.
+  
+  Defaults to `process.env.DEDALUS_API_KEY`
+</ParamField>
+
+<ParamField path="xAPIKey" type="string | null">
+  API key for X-API-Key header authentication.
+  
+  Defaults to `process.env.DEDALUS_X_API_KEY`
+</ParamField>
+
+<ParamField path="organization" type="string | null">
+  Organization ID for request scoping.
+  
+  Defaults to `process.env.DEDALUS_ORG_ID`
+</ParamField>
+
+<ParamField path="provider" type="string | null">
+  Provider name for Bring Your Own Key (BYOK) mode.
+  
+  Defaults to `process.env.DEDALUS_PROVIDER`
+</ParamField>
+
+<ParamField path="providerKey" type="string | null">
+  Provider API key for BYOK mode.
+  
+  Defaults to `process.env.DEDALUS_PROVIDER_KEY`
+</ParamField>
+
+<ParamField path="providerModel" type="string | null">
+  Model identifier for BYOK provider.
+  
+  Defaults to `process.env.DEDALUS_PROVIDER_MODEL`
+</ParamField>
+
+<ParamField path="environment" type="'production' | 'development'">
+  Specifies the environment to use for the API.
+  
+  Each environment maps to a different base URL:
+  - `production` corresponds to `https://api.dedaluslabs.ai`
+  - `development` corresponds to `http://localhost:8080`
+  
+  Defaults to `'production'`
+</ParamField>
+
+<ParamField path="baseURL" type="string | null">
+  Override the default base URL for the API, e.g., `"https://api.example.com/v2/"`
+  
+  Defaults to `process.env.DEDALUS_BASE_URL`
+  
+  <Warning>Cannot be used together with the `environment` option. If you want to use an environment preset, pass `baseURL: null`</Warning>
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  The maximum amount of time (in milliseconds) that the client should wait for a response from the server before timing out a single request.
+  
+  <Note>Request timeouts are retried by default, so in a worst-case scenario you may wait much longer than this timeout before the promise succeeds or fails.</Note>
+  
+  Defaults to `60000` (1 minute)
+</ParamField>
+
+<ParamField path="maxRetries" type="number">
+  The maximum number of times that the client will retry a request in case of a temporary failure, like a network error or a 5XX error from the server.
+  
+  Defaults to `2`
+</ParamField>
+
+<ParamField path="fetch" type="Fetch">
+  Specify a custom `fetch` function implementation.
+  
+  If not provided, the SDK expects that `fetch` is defined globally.
+</ParamField>
+
+<ParamField path="fetchOptions" type="RequestInit">
+  Additional `RequestInit` options to be passed to `fetch` calls.
+  
+  Properties will be overridden by per-request `fetchOptions`.
+</ParamField>
+
+<ParamField path="defaultHeaders" type="Record<string, string>">
+  Default headers to include with every request to the API.
+  
+  These can be removed in individual requests by explicitly setting the header to `null` in request options.
+</ParamField>
+
+<ParamField path="defaultQuery" type="Record<string, string | undefined>">
+  Default query parameters to include with every request to the API.
+  
+  These can be removed in individual requests by explicitly setting the param to `undefined` in request options.
+</ParamField>
+
+<ParamField path="logLevel" type="'debug' | 'info' | 'warn' | 'error' | 'silent'">
+  Set the log level for SDK logging.
+  
+  Defaults to `process.env.DEDALUS_LOG` or `'warn'` if not set.
+</ParamField>
+
+<ParamField path="logger" type="Logger">
+  Set a custom logger implementation.
+  
+  Defaults to `globalThis.console`
+</ParamField>
+
+## Environment Variables
+
+All configuration options can be set via environment variables:
+
+| Option | Environment Variable |
+|--------|---------------------|
+| `apiKey` | `DEDALUS_API_KEY` |
+| `xAPIKey` | `DEDALUS_X_API_KEY` |
+| `organization` | `DEDALUS_ORG_ID` |
+| `provider` | `DEDALUS_PROVIDER` |
+| `providerKey` | `DEDALUS_PROVIDER_KEY` |
+| `providerModel` | `DEDALUS_PROVIDER_MODEL` |
+| `baseURL` | `DEDALUS_BASE_URL` |
+| `logLevel` | `DEDALUS_LOG` |
+
+## Creating Modified Clients
+
+Use `withOptions()` to create a new client instance with modified configuration:
+
+```typescript
+const client = new Dedalus({ apiKey: 'key-1' });
+
+// Create a new client with different options
+const clientWithTimeout = client.withOptions({ 
+  timeout: 120000 
+});
+```
+
+The new client re-uses all options from the original client, with the specified options overridden.
+
+## Example Configurations
+
+### Production with Custom Timeout
+
+```typescript
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+  environment: 'production',
+  timeout: 30000, // 30 seconds
+  maxRetries: 3
+});
+```
+
+### Development Environment
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'dev-key',
+  environment: 'development',
+  logLevel: 'debug'
+});
+```
+
+### BYOK Configuration
+
+```typescript
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+  provider: 'openai',
+  providerKey: process.env.OPENAI_API_KEY,
+  providerModel: 'gpt-4'
+});
+```
+
+### Custom Base URL
+
+```typescript
+const client = new Dedalus({
+  apiKey: 'your-api-key',
+  baseURL: 'https://custom.api.example.com/v1'
+});
+```

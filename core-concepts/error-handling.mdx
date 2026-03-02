@@ -1,0 +1,407 @@
+---
+title: 'Error Handling'
+description: 'Handle API errors, network failures, and response parsing errors'
+---
+
+The Dedalus SDK provides a comprehensive error hierarchy for handling different failure scenarios. All errors extend from the base `DedalusError` class.
+
+## Error Hierarchy
+
+```typescript
+DedalusError (base class)
+├── APIError (HTTP response errors)
+│   ├── BadRequestError (400)
+│   ├── AuthenticationError (401)
+│   ├── PermissionDeniedError (403)
+│   ├── NotFoundError (404)
+│   ├── ConflictError (409)
+│   ├── UnprocessableEntityError (422)
+│   ├── RateLimitError (429)
+│   └── InternalServerError (500+)
+├── APIConnectionError (network failures)
+│   └── APIConnectionTimeoutError (connection timeouts)
+└── APIUserAbortError (user-initiated abort)
+```
+
+## Error Types
+
+### DedalusError
+
+The base error class for all SDK errors.
+
+```typescript src/core/error.ts:5
+export class DedalusError extends Error {}
+```
+
+### APIError
+
+Base class for HTTP response errors. Contains status code, headers, and error body.
+
+```typescript src/core/error.ts:7-24
+export class APIError<
+  TStatus extends number | undefined = number | undefined,
+  THeaders extends Headers | undefined = Headers | undefined,
+  TError extends Object | undefined = Object | undefined,
+> extends DedalusError {
+  /** HTTP status for the response that caused the error */
+  readonly status: TStatus;
+  /** HTTP headers for the response that caused the error */
+  readonly headers: THeaders;
+  /** JSON body of the response that caused the error */
+  readonly error: TError;
+
+  constructor(status: TStatus, error: TError, message: string | undefined, headers: THeaders) {
+    super(`${APIError.makeMessage(status, error, message)}`);
+    this.status = status;
+    this.headers = headers;
+    this.error = error;
+  }
+```
+
+Properties:
+- `status` - HTTP status code (e.g., 400, 401, 500)
+- `headers` - Response headers
+- `error` - Parsed JSON error body
+- `message` - Human-readable error message
+
+### Status-Specific Errors
+
+#### BadRequestError (400)
+
+```typescript src/core/error.ts:116
+export class BadRequestError extends APIError<400, Headers> {}
+```
+
+Thrown when the request is malformed or contains invalid parameters.
+
+#### AuthenticationError (401)
+
+```typescript src/core/error.ts:118
+export class AuthenticationError extends APIError<401, Headers> {}
+```
+
+Thrown when authentication fails or API key is invalid.
+
+#### PermissionDeniedError (403)
+
+```typescript src/core/error.ts:120
+export class PermissionDeniedError extends APIError<403, Headers> {}
+```
+
+Thrown when the API key lacks permissions for the requested resource.
+
+#### NotFoundError (404)
+
+```typescript src/core/error.ts:122
+export class NotFoundError extends APIError<404, Headers> {}
+```
+
+Thrown when the requested resource does not exist.
+
+#### ConflictError (409)
+
+```typescript src/core/error.ts:124
+export class ConflictError extends APIError<409, Headers> {}
+```
+
+Thrown when the request conflicts with the current state (e.g., duplicate resource).
+
+#### UnprocessableEntityError (422)
+
+```typescript src/core/error.ts:126
+export class UnprocessableEntityError extends APIError<422, Headers> {}
+```
+
+Thrown when the request is well-formed but contains semantic errors.
+
+#### RateLimitError (429)
+
+```typescript src/core/error.ts:128
+export class RateLimitError extends APIError<429, Headers> {}
+```
+
+Thrown when rate limits are exceeded.
+
+#### InternalServerError (500+)
+
+```typescript src/core/error.ts:130
+export class InternalServerError extends APIError<number, Headers> {}
+```
+
+Thrown for server-side errors (status codes 500 and above).
+
+### Connection Errors
+
+#### APIConnectionError
+
+```typescript src/core/error.ts:101-108
+export class APIConnectionError extends APIError<undefined, undefined, undefined> {
+  constructor({ message, cause }: { message?: string | undefined; cause?: Error | undefined }) {
+    super(undefined, undefined, message || 'Connection error.', undefined);
+    // in some environments the 'cause' property is already declared
+    // @ts-ignore
+    if (cause) this.cause = cause;
+  }
+}
+```
+
+Thrown when a network connection fails. Contains the underlying error in the `cause` property.
+
+#### APIConnectionTimeoutError
+
+```typescript src/core/error.ts:110-114
+export class APIConnectionTimeoutError extends APIConnectionError {
+  constructor({ message }: { message?: string } = {}) {
+    super({ message: message ?? 'Request timed out.' });
+  }
+}
+```
+
+Thrown when a request times out during connection or while waiting for response headers.
+
+### APIUserAbortError
+
+```typescript src/core/error.ts:95-99
+export class APIUserAbortError extends APIError<undefined, undefined, undefined> {
+  constructor({ message }: { message?: string } = {}) {
+    super(undefined, undefined, message || 'Request was aborted.', undefined);
+  }
+}
+```
+
+Thrown when a request is aborted by the user via an `AbortSignal`.
+
+### Response Parsing Errors
+
+#### LengthFinishReasonError
+
+```typescript src/lib/parser.ts:172-177
+export class LengthFinishReasonError extends Error {
+  constructor() {
+    super('Completion was cut off due to length limit (finish_reason: length)');
+    this.name = 'LengthFinishReasonError';
+  }
+}
+```
+
+Thrown when a chat completion is truncated due to max token limits.
+
+#### ContentFilterFinishReasonError
+
+```typescript src/lib/parser.ts:182-187
+export class ContentFilterFinishReasonError extends Error {
+  constructor() {
+    super('Content was filtered due to content policy (finish_reason: content_filter)');
+    this.name = 'ContentFilterFinishReasonError';
+  }
+}
+```
+
+Thrown when content is blocked by content filtering policies.
+
+## Error Generation
+
+The SDK automatically generates the appropriate error type based on HTTP status codes:
+
+```typescript src/core/error.ts:47-92
+static generate(
+  status: number | undefined,
+  errorResponse: Object | undefined,
+  message: string | undefined,
+  headers: Headers | undefined,
+): APIError {
+  if (!status || !headers) {
+    return new APIConnectionError({ message, cause: castToError(errorResponse) });
+  }
+
+  const error = errorResponse as Record<string, any>;
+
+  if (status === 400) {
+    return new BadRequestError(status, error, message, headers);
+  }
+
+  if (status === 401) {
+    return new AuthenticationError(status, error, message, headers);
+  }
+
+  if (status === 403) {
+    return new PermissionDeniedError(status, error, message, headers);
+  }
+
+  if (status === 404) {
+    return new NotFoundError(status, error, message, headers);
+  }
+
+  if (status === 409) {
+    return new ConflictError(status, error, message, headers);
+  }
+
+  if (status === 422) {
+    return new UnprocessableEntityError(status, error, message, headers);
+  }
+
+  if (status === 429) {
+    return new RateLimitError(status, error, message, headers);
+  }
+
+  if (status >= 500) {
+    return new InternalServerError(status, error, message, headers);
+  }
+
+  return new APIError(status, error, message, headers);
+}
+```
+
+## Error Handling Patterns
+
+### Basic Try-Catch
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+const client = new Dedalus({ apiKey: 'your-api-key' });
+
+try {
+  const completion = await client.chat.completions.create({
+    model: 'gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }]
+  });
+} catch (error) {
+  if (error instanceof Dedalus.APIError) {
+    console.error('API Error:', error.status, error.message);
+    console.error('Error details:', error.error);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+### Type-Specific Handling
+
+```typescript
+try {
+  await client.chat.completions.create({...});
+} catch (error) {
+  if (error instanceof Dedalus.AuthenticationError) {
+    console.error('Invalid API key');
+  } else if (error instanceof Dedalus.RateLimitError) {
+    console.error('Rate limit exceeded');
+    // Implement backoff strategy
+  } else if (error instanceof Dedalus.BadRequestError) {
+    console.error('Invalid request:', error.error);
+  } else if (error instanceof Dedalus.APIConnectionTimeoutError) {
+    console.error('Request timed out');
+  } else if (error instanceof Dedalus.InternalServerError) {
+    console.error('Server error, please retry');
+  }
+}
+```
+
+### Accessing Error Details
+
+```typescript
+try {
+  await client.chat.completions.create({...});
+} catch (error) {
+  if (error instanceof Dedalus.APIError) {
+    console.log('Status:', error.status);
+    console.log('Headers:', error.headers);
+    console.log('Error body:', error.error);
+    console.log('Message:', error.message);
+  }
+}
+```
+
+### Rate Limit Handling
+
+```typescript
+async function callWithBackoff(fn: () => Promise<any>, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error instanceof Dedalus.RateLimitError) {
+        const retryAfter = error.headers?.get('retry-after');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, i) * 1000;
+        console.log(`Rate limited. Waiting ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        throw error;
+      }
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+const result = await callWithBackoff(() => 
+  client.chat.completions.create({...})
+);
+```
+
+### Abort Handling
+
+```typescript
+const controller = new AbortController();
+
+// Abort after 5 seconds
+setTimeout(() => controller.abort(), 5000);
+
+try {
+  await client.chat.completions.create(
+    { model: 'gpt-4', messages: [...] },
+    { signal: controller.signal }
+  );
+} catch (error) {
+  if (error instanceof Dedalus.APIUserAbortError) {
+    console.log('Request was aborted');
+  }
+}
+```
+
+### Parsing Error Handling
+
+```typescript
+import { LengthFinishReasonError, ContentFilterFinishReasonError } from 'dedalus';
+
+try {
+  const completion = await client.chat.completions.create({...});
+} catch (error) {
+  if (error instanceof LengthFinishReasonError) {
+    console.log('Response truncated due to length');
+    // Retry with shorter prompt or higher max_tokens
+  } else if (error instanceof ContentFilterFinishReasonError) {
+    console.log('Content was filtered');
+    // Modify prompt to comply with content policy
+  }
+}
+```
+
+## Accessing Error Classes
+
+All error classes are available as static properties on the `Dedalus` class:
+
+```typescript src/client.ts:835-847
+static DedalusError = Errors.DedalusError;
+static APIError = Errors.APIError;
+static APIConnectionError = Errors.APIConnectionError;
+static APIConnectionTimeoutError = Errors.APIConnectionTimeoutError;
+static APIUserAbortError = Errors.APIUserAbortError;
+static NotFoundError = Errors.NotFoundError;
+static ConflictError = Errors.ConflictError;
+static RateLimitError = Errors.RateLimitError;
+static BadRequestError = Errors.BadRequestError;
+static AuthenticationError = Errors.AuthenticationError;
+static InternalServerError = Errors.InternalServerError;
+static PermissionDeniedError = Errors.PermissionDeniedError;
+static UnprocessableEntityError = Errors.UnprocessableEntityError;
+```
+
+Usage:
+
+```typescript
+import { Dedalus } from 'dedalus';
+
+if (error instanceof Dedalus.RateLimitError) {
+  // Handle rate limit
+}
+```

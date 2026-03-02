@@ -1,0 +1,105 @@
+---
+title: 'Create Speech'
+api: 'POST /v1/audio/speech'
+---
+
+Generates audio from the input text using text-to-speech models.
+
+## Method
+
+```typescript
+client.audio.speech.create(params)
+```
+
+## Request Parameters
+
+<ParamField body="input" type="string" required>
+  The text to generate audio for. The maximum length is 4096 characters.
+</ParamField>
+
+<ParamField body="model" type="string" required>
+  One of the available TTS models: `openai/tts-1`, `openai/tts-1-hd`, or `openai/gpt-4o-mini-tts`.
+</ParamField>
+
+<ParamField body="voice" type="string" required>
+  The voice to use when generating the audio. Supported voices are:
+  - `alloy`
+  - `ash`
+  - `ballad`
+  - `coral`
+  - `echo`
+  - `fable`
+  - `onyx`
+  - `nova`
+  - `sage`
+  - `shimmer`
+  - `verse`
+  
+  Previews of the voices are available in the [Text to speech guide](https://platform.openai.com/docs/guides/text-to-speech#voice-options).
+</ParamField>
+
+<ParamField body="instructions" type="string">
+  Control the voice of your generated audio with additional instructions. Does not work with `tts-1` or `tts-1-hd`.
+</ParamField>
+
+<ParamField body="response_format" type="string">
+  The format to audio in. Supported formats are `mp3`, `opus`, `aac`, `flac`, `wav`, and `pcm`.
+  
+  Default: `mp3`
+</ParamField>
+
+<ParamField body="speed" type="number">
+  The speed of the generated audio. Select a value from `0.25` to `4.0`. `1.0` is the default.
+  
+  Default: `1.0`
+</ParamField>
+
+<ParamField body="stream_format" type="string">
+  The format to stream the audio in. Supported formats are `sse` and `audio`. `sse` is not supported for `tts-1` or `tts-1-hd`.
+</ParamField>
+
+## Response
+
+Returns streaming audio data as a binary Response object that can be saved to a file or streamed directly to users.
+
+## Example
+
+<CodeGroup>
+
+```typescript Basic Usage
+const mp3 = await client.audio.speech.create({
+  model: "openai/tts-1",
+  voice: "alloy",
+  input: "The quick brown fox jumped over the lazy dog.",
+});
+
+const buffer = Buffer.from(await mp3.arrayBuffer());
+await fs.promises.writeFile("speech.mp3", buffer);
+```
+
+```typescript With Options
+const audio = await client.audio.speech.create({
+  model: "openai/gpt-4o-mini-tts",
+  voice: "nova",
+  input: "Hello, how are you today?",
+  response_format: "opus",
+  speed: 1.25,
+  instructions: "Speak with enthusiasm and energy"
+});
+
+const buffer = Buffer.from(await audio.arrayBuffer());
+await fs.promises.writeFile("speech.opus", buffer);
+```
+
+```typescript Streaming
+const response = await client.audio.speech.create({
+  model: "openai/gpt-4o-mini-tts",
+  voice: "shimmer",
+  input: "This is a streaming example.",
+  stream_format: "sse"
+});
+
+// Stream to file or client
+```
+
+</CodeGroup>

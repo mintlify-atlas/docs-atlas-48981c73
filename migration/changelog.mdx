@@ -1,0 +1,280 @@
+---
+title: Changelog
+description: Version history and updates for the Dedalus TypeScript SDK
+---
+
+## 0.1.0-alpha.8 (2025-11-26)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.7...v0.1.0-alpha.8)
+
+### Features
+
+#### API Updates
+- Added new API endpoints
+- Added streaming support and configuration
+- Added response format support
+- Added structured outputs
+- Improved type definitions and model configuration
+- Added image support for multimodal interactions
+- Added auto-execute tools capability
+- Decoupled Model and DedalusModel types
+- Added chat completions endpoint
+
+#### MCP Server
+- Added code execution tool for running TypeScript in sandbox
+- Added docs search tool with detail field
+- Added logging when `DEDALUS_LOG` environment variable is set
+- Added option to include/exclude docs tools
+- Added option to infer MCP client type automatically
+- Added configurable logging levels
+- Enabled experimental docs search tool
+- Enabled optional code execution tool on HTTP MCP servers
+- Exposed client options in `streamableHTTPApp`
+- Added query string parsing for MCP client options
+
+#### Runner
+- Added type definitions for DedalusRunner
+- Added utilities for tool execution and message handling
+
+### Bug Fixes
+
+- Fixed shared DedalusModel type
+- Merged origin/next and updated types for new schema structure
+- Fixed CI permissions for DXT publish action
+- Coerced nullable values to undefined
+- Avoided importing unsupported libraries in non-Node environments
+- Avoided sending `jq_filter` to base API
+- Pinned `@anthropic-ai/mcpb` version
+- Fixed CLI argument parsing logic
+- Fixed query options parsing
+- Fixed tool description of `jq_filter`
+- Fixed uploading DXT release assets
+- Generated `additionalProperties=true` for map schemas to avoid validation issues
+- Resolved linting issue in MCP server code
+- Returned tool execution error on jq failure
+- Reversed `validJson` capability option and limited scope
+- Used raw responses for binary content
+
+### Performance
+
+- Faster formatting implementation
+
+### Chores
+
+- Updated dependencies
+- Internal codegen improvements
+- Updated ESLint configuration
+- Removed deprecated TypeScript options
+- Improved documentation
+- Refactored array checks and internal types
+
+### Documentation
+
+- Added README button for one-click add to Cursor
+- Added README link to add server to VS Code or Claude Code
+
+### Refactors
+
+- Fixed example import paths in helpers
+- Standardized directory layout for runner
+
+---
+
+## 0.1.0-alpha.7 (2025-11-25)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.6...v0.1.0-alpha.7)
+
+### Features
+
+- **MCP**: Added detail field to docs search tool
+
+---
+
+## 0.1.0-alpha.6 (2025-11-25)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.5...v0.1.0-alpha.6)
+
+### Features
+
+- **API**: Config update for dedalus-ai/dev environment
+- **API**: Messages parameter now nullable
+- **API**: Response format support
+- **API**: Schema compiler integration
+- **API**: Standardized name casing with Stainless initialism
+- **Runner**: Added type definitions
+- **Utils**: New utility functions
+
+### Bug Fixes
+
+- **MCP**: Return tool execution error on jq failure
+- **MCP**: Use raw responses for binary content
+
+### Chores
+
+- Configured MCP Server hosting
+- Clarified HTTP auth error messages
+- Upgraded jq-web dependency
+
+### Refactors
+
+- **Runner**: Standardized directory layout
+
+---
+
+## 0.1.0-alpha.5 (2025-10-10)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.4...v0.1.0-alpha.5)
+
+### Features
+
+#### API Enhancements
+- Multiple API endpoint additions
+- Parameter adjustments and improvements
+- Chat completions support
+- Model configuration improvements
+- Streaming changes
+- Schema and type improvements
+- Logic adjustments
+
+#### MCP Server
+- Code execution tool
+- Docs search tool
+- Option for including docs tools
+- Option to infer MCP client
+- Configurable logging levels
+- Experimental docs search tool
+- Client options exposed in `streamableHTTPApp`
+- Query string parsing for MCP client options
+
+#### Models
+- Added DedalusModel support
+
+### Bug Fixes
+
+- **CI**: Set permissions for DXT publish action
+- Coerced nullable values to undefined
+- **MCP**: Avoided importing unsupported libraries on non-Node environments
+- **MCP**: Fixed CLI argument parsing logic
+- **MCP**: Fixed query options parsing
+- **MCP**: Fixed uploading DXT release assets
+- **MCP**: Generated `additionalProperties=true` for map schemas
+- **MCP**: Resolved linting issue
+
+### Performance
+
+- Faster formatting implementation
+
+### Chores
+
+- Updated dependencies
+- Codegen improvements
+- Documentation updates
+- MCP server configuration improvements
+- Internal refactoring
+
+---
+
+## 0.1.0-alpha.4 (2025-08-07)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.3...v0.1.0-alpha.4)
+
+### Features
+
+- **API**: API updates and streaming schemas
+- **API**: Streaming fixes
+- **MCP**: Unix socket option for remote MCP
+- **MCP**: Remote server with passthrough authentication
+
+### Bug Fixes
+
+- **MCP**: Fixed bug in header handling
+
+### Chores
+
+- Moved publish configuration
+- Refactored streamable HTTP transport
+
+---
+
+## 0.1.0-alpha.3 (2025-08-05)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.2...v0.1.0-alpha.3)
+
+### Features
+
+- **API**: Added streaming support
+- **API**: Added streaming configuration
+- **API**: Reverted streaming temporarily
+- **MCP**: Added logging when environment variable is set
+
+### Bug Fixes
+
+- **MCP**: Avoided sending `jq_filter` to base API
+- **MCP**: Fixed tool description of `jq_filter`
+- **MCP**: Reversed `validJson` capability option and limited scope
+
+---
+
+## 0.1.0-alpha.2 (2025-07-30)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.1.0-alpha.1...v0.1.0-alpha.2)
+
+### Features
+
+- **API**: API update
+
+### Chores
+
+- Configured new SDK language
+
+---
+
+## 0.1.0-alpha.1 (2025-07-30)
+
+[Full Changelog](https://github.com/dedalus-labs/dedalus-sdk-typescript/compare/v0.0.1-alpha.0...v0.1.0-alpha.1)
+
+### Features
+
+- **API**: Update via SDK Studio
+
+### Chores
+
+- Configured new SDK language
+
+---
+
+## Migration Notes
+
+### From alpha.7 to alpha.8
+
+- **Breaking**: Some MCP tools have been reorganized
+- **New**: DedalusRunner now supports verbose and debug logging
+- **New**: Code execution tool available in MCP server
+- **Improved**: Better type safety for model specifications
+
+### From alpha.6 to alpha.7
+
+- Minor update with docs search improvements
+- No breaking changes
+
+### From alpha.5 to alpha.6
+
+- **New**: Response format support for structured outputs
+- **New**: Schema compiler integration
+- **Changed**: Messages parameter can now be null
+- No breaking changes
+
+### From alpha.4 to alpha.5
+
+- **New**: Comprehensive MCP server features
+- **New**: DedalusModel type
+- **Changed**: Multiple API improvements
+- Recommended to review MCP configuration if using the server
+
+### General Upgrade Advice
+
+1. Review the changelog for your current and target versions
+2. Update your dependencies: `npm install dedalus-labs@latest`
+3. If using MCP server, check configuration options
+4. Test tool execution if using DedalusRunner
+5. Review type changes if using TypeScript

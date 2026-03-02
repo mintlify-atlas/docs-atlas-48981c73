@@ -1,122 +1,134 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Dedalus TypeScript SDK",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#6366f1",
+    "light": "#818cf8",
+    "dark": "#4f46e5"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/dedalus-labs/dedalus-sdk-typescript"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/dedalus-labs/dedalus-sdk-typescript"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core-concepts/client-configuration",
+              "core-concepts/authentication",
+              "core-concepts/environments",
+              "core-concepts/error-handling",
+              "core-concepts/retries-timeouts"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/streaming-responses",
+              "guides/file-uploads",
+              "guides/structured-outputs",
+              "guides/logging",
+              "guides/advanced-usage"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/overview"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Chat",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/chat/completions",
+              "api-reference/chat/streaming",
+              "api-reference/chat/tool-calling"
+            ]
+          },
+          {
+            "group": "Audio",
+            "pages": [
+              "api-reference/audio/speech",
+              "api-reference/audio/transcriptions",
+              "api-reference/audio/translations"
+            ]
+          },
+          {
+            "group": "Images",
+            "pages": [
+              "api-reference/images/generate",
+              "api-reference/images/edit",
+              "api-reference/images/variations"
+            ]
+          },
+          {
+            "group": "Embeddings",
+            "pages": [
+              "api-reference/embeddings/create"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api-reference/models/list",
+              "api-reference/models/retrieve"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api-reference/types/client-options",
+              "api-reference/types/errors",
+              "api-reference/types/shared"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Advanced",
+        "groups": [
+          {
+            "group": "Integration",
+            "pages": [
+              "advanced/mcp-server",
+              "advanced/runner",
+              "advanced/custom-fetch"
+            ]
+          },
+          {
+            "group": "Migration",
+            "pages": [
+              "migration/changelog",
+              "migration/upgrading"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

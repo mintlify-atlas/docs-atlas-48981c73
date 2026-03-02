@@ -1,0 +1,444 @@
+---
+title: 'Chat Completions'
+description: 'Create chat completions with the Dedalus SDK'
+api: 'POST /v1/chat/completions'
+---
+
+## Overview
+
+The `client.chat.completions.create()` method generates model responses for conversations. It supports OpenAI-compatible parameters with Dedalus-specific extensions for multi-model routing, server-side tool execution, and agent orchestration.
+
+## Basic Usage
+
+```typescript
+import Dedalus from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { role: 'user', content: 'What is the capital of France?' }
+  ],
+});
+
+console.log(completion.choices[0].message.content);
+```
+
+## Method Signature
+
+```typescript
+client.chat.completions.create(
+  body: CompletionCreateParams,
+  options?: RequestOptions
+): APIPromise<Completion | Stream<StreamChunk>>
+```
+
+## Parameters
+
+### Required Parameters
+
+<ParamField path="model" type="string | DedalusModel | Array<DedalusModelChoice>" required>
+  Model identifier. Accepts:
+  - Simple string: `'openai/gpt-4'`
+  - DedalusModel object with per-model settings
+  - Array of models for routing
+  
+  Examples:
+  - `'openai/gpt-4'`
+  - `'anthropic/claude-3-5-sonnet'`
+  - `'google/gemini-pro'`
+</ParamField>
+
+### Core Parameters
+
+<ParamField path="messages" type="Array<ChatCompletionMessageParam>">
+  Conversation history. Array of message objects with `role` and `content`.
+  
+  Supported roles:
+  - `user` - Messages from the end user
+  - `assistant` - Messages from the AI assistant
+  - `system` - System instructions (legacy, use `developer` for newer models)
+  - `developer` - Developer instructions (o1 models and newer)
+  - `tool` - Tool execution results
+  - `function` - Function call results (deprecated)
+</ParamField>
+
+<ParamField path="stream" type="boolean" default="false">
+  Enable streaming responses. When `true`, returns a `Stream<StreamChunk>` instead of `Completion`.
+  
+  See [Streaming documentation](/api-reference/chat/streaming) for details.
+</ParamField>
+
+<ParamField path="temperature" type="number" default="1.0">
+  Sampling temperature between 0 and 2. Higher values make output more random, lower values more deterministic.
+  
+  - `0.0` - Deterministic, focused
+  - `1.0` - Balanced (default)
+  - `2.0` - Very creative, random
+</ParamField>
+
+<ParamField path="max_tokens" type="number">
+  Maximum number of tokens to generate in the completion.
+  
+  Note: Some models use `max_completion_tokens` instead.
+</ParamField>
+
+<ParamField path="max_completion_tokens" type="number">
+  Maximum tokens in completion (newer parameter name, preferred for some models).
+</ParamField>
+
+### Tool Calling Parameters
+
+<ParamField path="tools" type="Array<ChatCompletionToolParam | CustomToolChatCompletions>">
+  Array of tools/functions available to the model.
+  
+  See [Tool Calling documentation](/api-reference/chat/tool-calling) for details.
+</ParamField>
+
+<ParamField path="tool_choice" type="ToolChoice">
+  Controls which tool the model uses:
+  - `'auto'` - Model decides (default)
+  - `'none'` - No tools used
+  - `'required'` - Model must use a tool
+  - `{ type: 'tool', name: 'tool_name' }` - Specific tool
+</ParamField>
+
+<ParamField path="automatic_tool_execution" type="boolean" default="false">
+  **Dedalus-specific**: Execute tools server-side. If `false`, returns raw tool calls for client-side handling.
+</ParamField>
+
+<ParamField path="parallel_tool_calls" type="boolean" default="true">
+  Whether to enable parallel tool calls. When `true`, the model can call multiple tools simultaneously.
+</ParamField>
+
+### Dedalus-Specific Parameters
+
+<ParamField path="mcp_servers" type="string | Array<string>">
+  MCP (Model Context Protocol) server identifiers. Accepts URLs, repository slugs, or server IDs.
+  
+  Example: `['github:user/repo', 'https://mcp.example.com']`
+</ParamField>
+
+<ParamField path="agent_attributes" type="Record<string, number>">
+  Agent attributes for routing. Values between 0.0 and 1.0.
+  
+  Example: `{ creativity: 0.8, accuracy: 0.9 }`
+</ParamField>
+
+<ParamField path="model_attributes" type="Record<string, Record<string, number>>">
+  Model attributes for routing. Maps model IDs to attribute dictionaries.
+  
+  Example:
+  ```typescript
+  {
+    'openai/gpt-4': { speed: 0.7, cost: 0.3 },
+    'anthropic/claude-3-5-sonnet': { quality: 0.9 }
+  }
+  ```
+</ParamField>
+
+<ParamField path="max_turns" type="number">
+  Maximum conversation turns for multi-turn agent workflows.
+</ParamField>
+
+<ParamField path="handoff_config" type="object">
+  Configuration for multi-model handoffs.
+</ParamField>
+
+### Advanced Parameters
+
+<ParamField path="top_p" type="number" default="1.0">
+  Nucleus sampling threshold (0-1). Alternative to temperature for controlling randomness.
+</ParamField>
+
+<ParamField path="top_k" type="number">
+  Top-k sampling parameter. Only available for some providers (e.g., Google).
+</ParamField>
+
+<ParamField path="presence_penalty" type="number" default="0">
+  Penalty for token presence (-2.0 to 2.0). Positive values encourage new topics.
+</ParamField>
+
+<ParamField path="frequency_penalty" type="number" default="0">
+  Penalty for token frequency (-2.0 to 2.0). Positive values reduce repetition.
+</ParamField>
+
+<ParamField path="n" type="number" default="1">
+  Number of chat completion choices to generate.
+</ParamField>
+
+<ParamField path="stop" type="string | Array<string>">
+  Up to 4 sequences where the API will stop generating tokens.
+</ParamField>
+
+<ParamField path="logprobs" type="boolean" default="false">
+  Whether to return log probabilities of output tokens.
+</ParamField>
+
+<ParamField path="top_logprobs" type="number">
+  Number of most likely tokens to return (0-20). Requires `logprobs: true`.
+</ParamField>
+
+<ParamField path="response_format" type="ResponseFormat">
+  Format of the model's response:
+  - `{ type: 'text' }` - Plain text (default)
+  - `{ type: 'json_object' }` - JSON object
+  - `{ type: 'json_schema', json_schema: {...} }` - Structured JSON with schema
+</ParamField>
+
+<ParamField path="seed" type="number">
+  Random seed for deterministic output. Use with `temperature: 0` for reproducible results.
+</ParamField>
+
+<ParamField path="user" type="string">
+  Unique identifier for the end user. Deprecated, use `safety_identifier` instead.
+</ParamField>
+
+<ParamField path="metadata" type="Record<string, unknown>">
+  Set of up to 16 key-value pairs for tracking purposes.
+</ParamField>
+
+### Provider-Specific Parameters
+
+<ParamField path="reasoning_effort" type="string">
+  For reasoning models (o1, o3). Controls effort on reasoning: `'low'`, `'medium'`, `'high'`.
+</ParamField>
+
+<ParamField path="thinking" type="ThinkingConfig">
+  Extended thinking configuration (Anthropic-specific):
+  - `{ type: 'enabled', budget_tokens: number }`
+  - `{ type: 'disabled' }`
+</ParamField>
+
+<ParamField path="audio" type="object">
+  Parameters for audio output (when `modalities` includes `'audio'`).
+</ParamField>
+
+<ParamField path="modalities" type="Array<string>">
+  Output modalities: `['text']`, `['text', 'audio']`.
+</ParamField>
+
+<ParamField path="prediction" type="PredictionContent">
+  Predicted output content for faster generation (Predicted Outputs feature).
+</ParamField>
+
+<ParamField path="store" type="boolean">
+  Whether to store the completion for training purposes.
+</ParamField>
+
+<ParamField path="safety_settings" type="Array<SafetySetting>">
+  Google-specific safety and content filtering settings.
+</ParamField>
+
+<ParamField path="web_search_options" type="object">
+  Configuration for web search tool integration.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the chat completion.
+</ResponseField>
+
+<ResponseField name="object" type="string" required>
+  Object type, always `'chat.completion'`.
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+  Unix timestamp (in seconds) when the completion was created.
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  Model used for the completion.
+</ResponseField>
+
+<ResponseField name="choices" type="Array<Choice>" required>
+  Array of completion choices. Usually contains one choice unless `n > 1`.
+  
+  Each choice contains:
+  - `index` (number) - Choice index
+  - `message` (ChatCompletionMessage) - Generated message
+  - `finish_reason` (string) - Why generation stopped: `'stop'`, `'length'`, `'tool_calls'`, `'content_filter'`
+  - `logprobs` (ChoiceLogprobs | null) - Log probability information if requested
+</ResponseField>
+
+<ResponseField name="usage" type="CompletionUsage">
+  Token usage statistics:
+  - `prompt_tokens` (number) - Tokens in the prompt
+  - `completion_tokens` (number) - Tokens in the completion
+  - `total_tokens` (number) - Total tokens used
+  - `completion_tokens_details` (object) - Breakdown of completion tokens
+  - `prompt_tokens_details` (object) - Breakdown of prompt tokens
+</ResponseField>
+
+<ResponseField name="system_fingerprint" type="string">
+  Backend configuration fingerprint. Useful with `seed` for understanding determinism.
+</ResponseField>
+
+<ResponseField name="service_tier" type="string">
+  Service tier used: `'auto'`, `'default'`, `'flex'`, `'scale'`, `'priority'`.
+</ResponseField>
+
+### Dedalus-Specific Response Fields
+
+<ResponseField name="tools_executed" type="Array<string>">
+  List of tool names executed server-side. Only present when `automatic_tool_execution: true`.
+</ResponseField>
+
+<ResponseField name="mcp_server_errors" type="object">
+  Information about MCP server failures, if any occurred.
+</ResponseField>
+
+## Examples
+
+### Simple Completion
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Explain quantum computing in simple terms.' }
+  ],
+  temperature: 0.7,
+  max_tokens: 500,
+});
+
+console.log(completion.choices[0].message.content);
+```
+
+### Multi-Turn Conversation
+
+```typescript
+const messages = [
+  { role: 'user', content: 'What is 2+2?' },
+  { role: 'assistant', content: '2+2 equals 4.' },
+  { role: 'user', content: 'What about 2+3?' }
+];
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages,
+});
+```
+
+### JSON Response Format
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { 
+      role: 'system', 
+      content: 'Extract the name and age as JSON.' 
+    },
+    { 
+      role: 'user', 
+      content: 'My name is John and I am 30 years old.' 
+    }
+  ],
+  response_format: { type: 'json_object' },
+});
+```
+
+### Structured Output with JSON Schema
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { role: 'user', content: 'Extract person info from: John Doe, 30 years old' }
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'person_info',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' }
+        },
+        required: ['name', 'age'],
+        additionalProperties: false
+      }
+    }
+  },
+});
+```
+
+### Multi-Model Routing
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: [
+    'openai/gpt-4',
+    'anthropic/claude-3-5-sonnet'
+  ],
+  messages: [
+    { role: 'user', content: 'Explain machine learning.' }
+  ],
+  agent_attributes: {
+    creativity: 0.8,
+    technical_depth: 0.9
+  },
+});
+```
+
+### With MCP Servers
+
+```typescript
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { role: 'user', content: 'Search for recent AI news' }
+  ],
+  mcp_servers: ['github:user/web-search-mcp'],
+  automatic_tool_execution: true,
+});
+```
+
+## Error Handling
+
+```typescript
+import { APIError, RateLimitError, AuthenticationError } from 'dedalus';
+
+try {
+  const completion = await client.chat.completions.create({
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello' }],
+  });
+} catch (error) {
+  if (error instanceof AuthenticationError) {
+    console.error('Invalid API key');
+  } else if (error instanceof RateLimitError) {
+    console.error('Rate limit exceeded');
+  } else if (error instanceof APIError) {
+    console.error('API error:', error.status, error.message);
+  }
+}
+```
+
+## HTTP Response Codes
+
+- `200 OK` - Successful completion
+- `400 Bad Request` - Invalid parameters
+- `401 Unauthorized` - Authentication failed
+- `402 Payment Required` - Insufficient credits
+- `429 Too Many Requests` - Rate limit exceeded
+- `500 Internal Server Error` - Server error
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Streaming" icon="stream" href="/api-reference/chat/streaming">
+    Learn about streaming responses
+  </Card>
+  <Card title="Tool Calling" icon="wrench" href="/api-reference/chat/tool-calling">
+    Implement function and tool calling
+  </Card>
+</CardGroup>

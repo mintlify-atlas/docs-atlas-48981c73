@@ -1,0 +1,366 @@
+---
+title: 'File Uploads'
+description: 'Learn how to upload files using the toFile helper and various file formats'
+icon: 'file-arrow-up'
+---
+
+## Overview
+
+The Dedalus SDK provides flexible file upload support for endpoints like audio transcriptions and translations. You can upload files from multiple sources using the `toFile` helper or directly pass file objects.
+
+## Supported File Sources
+
+Request parameters that accept file uploads support multiple formats:
+
+- `File` objects (or objects with the same structure)
+- `fetch` `Response` objects
+- `fs.ReadStream` (Node.js)
+- The return value of the `toFile` helper
+- Raw `Blob` or `ArrayBuffer` data
+
+## Using the toFile Helper
+
+The `toFile` helper converts various data types into a `File` object that can be uploaded.
+
+### Import the Helper
+
+```typescript
+import Dedalus, { toFile } from 'dedalus-labs';
+```
+
+### Basic Usage
+
+<CodeGroup>
+
+```typescript Node.js
+import fs from 'fs';
+import Dedalus, { toFile } from 'dedalus-labs';
+
+const client = new Dedalus();
+
+// Method 1: Using fs.createReadStream (recommended for Node.js)
+await client.audio.transcriptions.create({
+  file: fs.createReadStream('/path/to/audio.mp3'),
+  model: 'whisper-1',
+});
+
+// Method 2: Using toFile with Buffer
+await client.audio.transcriptions.create({
+  file: await toFile(Buffer.from('my audio bytes'), 'audio.mp3'),
+  model: 'whisper-1',
+});
+
+// Method 3: Using toFile with fs.readFileSync
+await client.audio.transcriptions.create({
+  file: await toFile(fs.readFileSync('/path/to/audio.mp3'), 'audio.mp3'),
+  model: 'whisper-1',
+});
+```
+
+```typescript Bun
+import Dedalus, { toFile } from 'dedalus-labs';
+
+const client = new Dedalus();
+
+// Using Bun.file
+const file = Bun.file('/path/to/audio.mp3');
+await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+});
+
+// Using toFile with Uint8Array
+const bytes = await Bun.file('/path/to/audio.mp3').arrayBuffer();
+await client.audio.transcriptions.create({
+  file: await toFile(new Uint8Array(bytes), 'audio.mp3'),
+  model: 'whisper-1',
+});
+```
+
+```typescript Deno
+import Dedalus, { toFile } from 'npm:dedalus-labs';
+
+const client = new Dedalus();
+
+// Using Deno.readFile
+const fileData = await Deno.readFile('/path/to/audio.mp3');
+await client.audio.transcriptions.create({
+  file: await toFile(fileData, 'audio.mp3'),
+  model: 'whisper-1',
+});
+
+// Using Deno.open
+const file = await Deno.open('/path/to/audio.mp3', { read: true });
+const bytes = await Deno.readAll(file);
+Deno.close(file.rid);
+
+await client.audio.transcriptions.create({
+  file: await toFile(bytes, 'audio.mp3'),
+  model: 'whisper-1',
+});
+```
+
+</CodeGroup>
+
+## Using Web File API
+
+If you have access to the web `File` API (browsers, modern runtimes), you can pass `File` instances directly:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+// From a file input element (browser)
+const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+const file = fileInput.files?.[0];
+
+if (file) {
+  await client.audio.transcriptions.create({
+    file: file,
+    model: 'whisper-1',
+  });
+}
+
+// Creating a File manually
+const file = new File(['my audio bytes'], 'audio.mp3', { type: 'audio/mpeg' });
+await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+});
+```
+
+## Using fetch Response
+
+You can pass a `fetch` `Response` object directly:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const response = await fetch('https://example.com/audio.mp3');
+
+await client.audio.transcriptions.create({
+  file: response,
+  model: 'whisper-1',
+});
+```
+
+<Note>
+When using a `Response` object, the SDK automatically extracts the filename from the URL if not provided.
+</Note>
+
+## toFile Options
+
+The `toFile` helper accepts optional configuration:
+
+```typescript
+await toFile(
+  value: ToFileInput | PromiseLike<ToFileInput>,
+  name?: string | null | undefined,
+  options?: {
+    type?: string;         // MIME type
+    lastModified?: number; // Last modified timestamp
+  }
+): Promise<File>
+```
+
+### Specifying MIME Type
+
+```typescript
+import { toFile } from 'dedalus-labs';
+
+const file = await toFile(
+  Buffer.from('audio data'),
+  'recording.mp3',
+  { type: 'audio/mpeg' }
+);
+```
+
+### Setting Last Modified
+
+```typescript
+import { toFile } from 'dedalus-labs';
+
+const file = await toFile(
+  Buffer.from('audio data'),
+  'recording.mp3',
+  { 
+    type: 'audio/mpeg',
+    lastModified: Date.now()
+  }
+);
+```
+
+## Working with Different Data Types
+
+### Uint8Array
+
+```typescript
+import { toFile } from 'dedalus-labs';
+
+const data = new Uint8Array([0, 1, 2, 3, 4]);
+const file = await toFile(data, 'data.bin');
+
+await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+});
+```
+
+### ArrayBuffer
+
+```typescript
+import { toFile } from 'dedalus-labs';
+
+const buffer = new ArrayBuffer(1024);
+const file = await toFile(buffer, 'audio.raw');
+
+await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+});
+```
+
+### Blob
+
+```typescript
+import { toFile } from 'dedalus-labs';
+
+const blob = new Blob(['audio data'], { type: 'audio/mpeg' });
+const file = await toFile(blob, 'audio.mp3');
+
+await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+});
+```
+
+### Async Iterables
+
+You can stream data from async iterables:
+
+```typescript
+import { toFile } from 'dedalus-labs';
+
+async function* generateAudioChunks() {
+  yield new Uint8Array([0, 1, 2]);
+  yield new Uint8Array([3, 4, 5]);
+  yield new Uint8Array([6, 7, 8]);
+}
+
+const file = await toFile(generateAudioChunks(), 'streamed-audio.mp3');
+
+await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+});
+```
+
+## Audio Transcription Example
+
+Complete example with different runtimes:
+
+<CodeGroup>
+
+```typescript Node.js
+import fs from 'fs';
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const transcription = await client.audio.transcriptions.create({
+  file: fs.createReadStream('./meeting-recording.mp3'),
+  model: 'whisper-1',
+  language: 'en',
+  response_format: 'json',
+});
+
+console.log(transcription.text);
+```
+
+```typescript Bun
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const file = Bun.file('./meeting-recording.mp3');
+
+const transcription = await client.audio.transcriptions.create({
+  file: file,
+  model: 'whisper-1',
+  language: 'en',
+  response_format: 'json',
+});
+
+console.log(transcription.text);
+```
+
+```typescript Deno
+import Dedalus, { toFile } from 'npm:dedalus-labs';
+
+const client = new Dedalus();
+
+const fileData = await Deno.readFile('./meeting-recording.mp3');
+
+const transcription = await client.audio.transcriptions.create({
+  file: await toFile(fileData, 'meeting-recording.mp3'),
+  model: 'whisper-1',
+  language: 'en',
+  response_format: 'json',
+});
+
+console.log(transcription.text);
+```
+
+</CodeGroup>
+
+## Error Handling
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import fs from 'fs';
+
+const client = new Dedalus();
+
+try {
+  const transcription = await client.audio.transcriptions.create({
+    file: fs.createReadStream('./audio.mp3'),
+    model: 'whisper-1',
+  });
+  console.log(transcription.text);
+} catch (error) {
+  if (error instanceof Dedalus.APIError) {
+    console.error('API Error:', error.status, error.message);
+  } else if (error.code === 'ENOENT') {
+    console.error('File not found');
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use streams for large files">
+    For Node.js, prefer `fs.createReadStream()` over reading entire files into memory with `fs.readFileSync()`.
+  </Step>
+  
+  <Step title="Specify MIME types">
+    Always specify the correct MIME type when using `toFile` to ensure proper handling.
+  </Step>
+  
+  <Step title="Handle file not found errors">
+    Add proper error handling for missing files and file system errors.
+  </Step>
+  
+  <Step title="Close file handles">
+    When using file streams, ensure they are properly closed after upload.
+  </Step>
+</Steps>
+
+<Warning>
+The SDK will throw an error if you attempt to use file uploads in environments that don't support the `File` API. Always check `toFile` availability in your runtime.
+</Warning>

@@ -1,0 +1,198 @@
+---
+title: 'Generate Images'
+api: 'POST /v1/images/generations'
+---
+
+Generates images from text prompts using DALL-E or GPT Image models. For multimodal models like gemini-2.5-flash-image, use `/v1/chat/completions` instead.
+
+## Method
+
+```typescript
+client.images.generate(params)
+```
+
+## Request Parameters
+
+<ParamField body="prompt" type="string" required>
+  A text description of the desired image(s). Maximum length:
+  - 32,000 characters for `gpt-image-1`
+  - 4,000 characters for `dall-e-3`
+  - 1,000 characters for `dall-e-2`
+</ParamField>
+
+<ParamField body="model" type="string">
+  The model to use for image generation. Options:
+  - `openai/dall-e-2`
+  - `openai/dall-e-3`
+  - `openai/gpt-image-1`
+  
+  Default: `openai/dall-e-2` (unless a `gpt-image-1`-specific parameter is used)
+</ParamField>
+
+<ParamField body="n" type="number">
+  The number of images to generate. Must be between 1 and 10. For `dall-e-3`, only `n=1` is supported.
+  
+  Default: `1`
+</ParamField>
+
+<ParamField body="size" type="string">
+  The size of the generated images:
+  - `gpt-image-1`: `1024x1024`, `1536x1024` (landscape), `1024x1536` (portrait), or `auto` (default)
+  - `dall-e-2`: `256x256`, `512x512`, or `1024x1024`
+  - `dall-e-3`: `1024x1024`, `1792x1024`, or `1024x1792`
+</ParamField>
+
+<ParamField body="quality" type="string">
+  The quality of the image that will be generated:
+  - `auto` (default) - automatically select the best quality
+  - `high`, `medium`, `low` - supported for `gpt-image-1`
+  - `hd`, `standard` - supported for `dall-e-3`
+  - `standard` - only option for `dall-e-2`
+</ParamField>
+
+<ParamField body="response_format" type="string">
+  The format in which generated images are returned:
+  - `url` - URLs valid for 60 minutes
+  - `b64_json` - Base64-encoded JSON
+  
+  Note: `gpt-image-1` always returns base64-encoded images.
+  
+  Default: `url`
+</ParamField>
+
+<ParamField body="style" type="string">
+  The style of the generated images (DALL-E 3 only):
+  - `vivid` - hyper-real and dramatic images
+  - `natural` - more natural, less hyper-real looking images
+</ParamField>
+
+<ParamField body="background" type="string">
+  Set transparency for the background (`gpt-image-1` only):
+  - `auto` (default) - model automatically determines the best background
+  - `transparent` - transparent background (requires `png` or `webp` output format)
+  - `opaque` - opaque background
+</ParamField>
+
+<ParamField body="output_format" type="string">
+  The format in which the generated images are returned (`gpt-image-1` only):
+  - `png`
+  - `jpeg`
+  - `webp`
+</ParamField>
+
+<ParamField body="output_compression" type="number">
+  The compression level (0-100%) for generated images (`gpt-image-1` only, with `webp` or `jpeg` formats).
+  
+  Default: `100`
+</ParamField>
+
+<ParamField body="moderation" type="string">
+  Content-moderation level for images (`gpt-image-1` only):
+  - `auto` (default) - standard filtering
+  - `low` - less restrictive filtering
+</ParamField>
+
+<ParamField body="stream" type="boolean">
+  Generate the image in streaming mode (`gpt-image-1` only). See the [Image generation guide](https://platform.openai.com/docs/guides/image-generation) for more information.
+  
+  Default: `false`
+</ParamField>
+
+<ParamField body="partial_images" type="number">
+  The number of partial images to generate (0-3). Used for streaming responses. When set to 0, the response will be a single image sent in one streaming event.
+  
+  Note: The final image may be sent before all partial images are generated if completed more quickly.
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier representing your end-user, which can help OpenAI monitor and detect abuse. [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#end-user-ids).
+</ParamField>
+
+## Response
+
+<ResponseField name="created" type="number" required>
+  Unix timestamp when images were created.
+</ResponseField>
+
+<ResponseField name="data" type="array" required>
+  List of generated images.
+  
+  <Expandable title="Image Object">
+    <ResponseField name="url" type="string">
+      URL of the generated image (if `response_format=url`).
+    </ResponseField>
+    
+    <ResponseField name="b64_json" type="string">
+      Base64-encoded image data (if `response_format=b64_json`).
+    </ResponseField>
+    
+    <ResponseField name="revised_prompt" type="string">
+      Revised prompt used for generation (DALL-E 3 only).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```typescript Basic Generation
+const image = await client.images.generate({
+  prompt: "A white siamese cat",
+  model: "openai/dall-e-3"
+});
+
+console.log(image.data[0].url);
+```
+
+```typescript Multiple Images
+const images = await client.images.generate({
+  prompt: "A futuristic cityscape at sunset",
+  model: "openai/dall-e-2",
+  n: 4,
+  size: "512x512"
+});
+
+images.data.forEach((img, i) => {
+  console.log(`Image ${i + 1}: ${img.url}`);
+});
+```
+
+```typescript High Quality with Style
+const image = await client.images.generate({
+  prompt: "An astronaut riding a horse on Mars",
+  model: "openai/dall-e-3",
+  size: "1792x1024",
+  quality: "hd",
+  style: "vivid"
+});
+
+console.log(image.data[0].url);
+console.log(image.data[0].revised_prompt);
+```
+
+```typescript Base64 Response
+const image = await client.images.generate({
+  prompt: "A serene mountain landscape",
+  model: "openai/dall-e-2",
+  response_format: "b64_json"
+});
+
+const buffer = Buffer.from(image.data[0].b64_json, 'base64');
+await fs.promises.writeFile("image.png", buffer);
+```
+
+```typescript GPT Image with Transparency
+const image = await client.images.generate({
+  prompt: "A logo for a tech startup",
+  model: "openai/gpt-image-1",
+  background: "transparent",
+  output_format: "png",
+  quality: "high"
+});
+
+const buffer = Buffer.from(image.data[0].b64_json, 'base64');
+await fs.promises.writeFile("logo.png", buffer);
+```
+
+</CodeGroup>

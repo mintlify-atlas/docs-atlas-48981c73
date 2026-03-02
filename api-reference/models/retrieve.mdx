@@ -1,0 +1,228 @@
+---
+title: "Retrieve Model"
+api: "GET /v1/models/{model_id}"
+description: "Retrieve detailed information about a specific model"
+---
+
+## Method
+
+```typescript
+client.models.retrieve(modelId)
+```
+
+Retrieve detailed information about a specific model, including its capabilities, provider, and supported features.
+
+## Parameters
+
+<ParamField path="modelId" type="string" required>
+  The ID of the model to retrieve (e.g., `"openai/gpt-4"`, `"anthropic/claude-3-5-sonnet-20241022"`).
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string" required>
+  Unique model identifier with provider prefix (e.g., `"openai/gpt-4"`).
+</ResponseField>
+
+<ResponseField name="provider" type="string" required>
+  Provider that hosts this model. One of: `openai`, `anthropic`, `google`, `xai`, `mistral`, `groq`, `fireworks`, `deepseek`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  When the model was released (RFC 3339 format).
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Human-readable model name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Model description.
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  Model version identifier.
+</ResponseField>
+
+<ResponseField name="capabilities" type="object">
+  Normalized model capabilities across all providers.
+  
+  <Expandable title="capabilities object">
+    <ResponseField name="text" type="boolean">
+      Supports text generation.
+    </ResponseField>
+    
+    <ResponseField name="vision" type="boolean">
+      Supports image understanding.
+    </ResponseField>
+    
+    <ResponseField name="audio" type="boolean">
+      Supports audio processing.
+    </ResponseField>
+    
+    <ResponseField name="image_generation" type="boolean">
+      Supports image generation.
+    </ResponseField>
+    
+    <ResponseField name="tools" type="boolean">
+      Supports function/tool calling.
+    </ResponseField>
+    
+    <ResponseField name="structured_output" type="boolean">
+      Supports structured JSON output.
+    </ResponseField>
+    
+    <ResponseField name="streaming" type="boolean">
+      Supports streaming responses.
+    </ResponseField>
+    
+    <ResponseField name="thinking" type="boolean">
+      Supports extended thinking/reasoning.
+    </ResponseField>
+    
+    <ResponseField name="input_token_limit" type="number">
+      Maximum input tokens.
+    </ResponseField>
+    
+    <ResponseField name="output_token_limit" type="number">
+      Maximum output tokens.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="defaults" type="object">
+  Provider-declared default parameters for model generation.
+  
+  <Expandable title="defaults object">
+    <ResponseField name="temperature" type="number">
+      Default temperature setting.
+    </ResponseField>
+    
+    <ResponseField name="max_output_tokens" type="number">
+      Default maximum output tokens.
+    </ResponseField>
+    
+    <ResponseField name="top_p" type="number">
+      Default top_p setting.
+    </ResponseField>
+    
+    <ResponseField name="top_k" type="number">
+      Default top_k setting.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="provider_declared_generation_methods" type="string[]">
+  Provider-specific generation method names.
+</ResponseField>
+
+<ResponseField name="provider_info" type="object">
+  Raw provider-specific metadata.
+</ResponseField>
+
+## Example
+
+### Basic retrieval
+
+```typescript
+const model = await client.models.retrieve("openai/gpt-4");
+
+console.log(`Model: ${model.id}`);
+console.log(`Provider: ${model.provider}`);
+console.log(`Display Name: ${model.display_name}`);
+```
+
+### Check model capabilities
+
+```typescript
+const model = await client.models.retrieve("anthropic/claude-3-5-sonnet-20241022");
+
+if (model.capabilities?.vision) {
+  console.log("This model supports vision!");
+}
+
+if (model.capabilities?.tools) {
+  console.log("This model supports function calling");
+}
+
+console.log(`Max input tokens: ${model.capabilities?.input_token_limit}`);
+console.log(`Max output tokens: ${model.capabilities?.output_token_limit}`);
+```
+
+### Get model defaults
+
+```typescript
+const model = await client.models.retrieve("openai/gpt-4");
+
+if (model.defaults) {
+  console.log(`Default temperature: ${model.defaults.temperature}`);
+  console.log(`Default max tokens: ${model.defaults.max_output_tokens}`);
+}
+```
+
+## Response Example
+
+```json
+{
+  "id": "openai/gpt-4",
+  "provider": "openai",
+  "created_at": "2023-06-27T00:00:00Z",
+  "display_name": "GPT-4",
+  "description": "Most capable GPT-4 model for complex tasks",
+  "version": "gpt-4-0613",
+  "capabilities": {
+    "text": true,
+    "vision": false,
+    "audio": false,
+    "image_generation": false,
+    "tools": true,
+    "structured_output": true,
+    "streaming": true,
+    "thinking": false,
+    "input_token_limit": 8192,
+    "output_token_limit": 4096
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "max_output_tokens": 4096,
+    "top_p": 1.0
+  },
+  "provider_declared_generation_methods": [
+    "generateContent",
+    "streamGenerateContent"
+  ],
+  "provider_info": {
+    "openai_specific_field": "value"
+  }
+}
+```
+
+## Error Responses
+
+### 404 Not Found
+
+Returned when the model ID does not exist or is not accessible with your current API key.
+
+```json
+{
+  "error": {
+    "message": "Model not found",
+    "type": "invalid_request_error",
+    "code": "model_not_found"
+  }
+}
+```
+
+### 401 Unauthorized
+
+Returned when authentication fails.
+
+```json
+{
+  "error": {
+    "message": "Invalid API key",
+    "type": "invalid_request_error",
+    "code": "invalid_api_key"
+  }
+}
+```

@@ -1,0 +1,174 @@
+---
+title: Installation
+description: Install the Dedalus TypeScript SDK in your project
+---
+
+## Install the package
+
+You can install the Dedalus SDK using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install dedalus-labs
+```
+
+```bash yarn
+yarn add dedalus-labs
+```
+
+```bash pnpm
+pnpm add dedalus-labs
+```
+
+```bash bun
+bun add dedalus-labs
+```
+
+</CodeGroup>
+
+## Get your API key
+
+Before using the SDK, you need an API key from Dedalus Labs.
+
+<Steps>
+  <Step title="Sign up for Dedalus">
+    Visit [dedaluslabs.ai](https://dedaluslabs.ai) and create an account if you haven't already.
+  </Step>
+  
+  <Step title="Generate an API key">
+    Navigate to your dashboard and generate a new API key for your project.
+  </Step>
+  
+  <Step title="Store your API key securely">
+    Add your API key to your environment variables. Never commit API keys to version control.
+    
+    ```bash .env
+    DEDALUS_API_KEY=your_api_key_here
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+Keep your API keys secure and never expose them in client-side code or public repositories.
+</Warning>
+
+## Set up your environment
+
+The SDK automatically reads your API key from the `DEDALUS_API_KEY` environment variable. You can also pass it explicitly when initializing the client:
+
+<CodeGroup>
+
+```typescript Environment variable (recommended)
+import Dedalus from 'dedalus-labs';
+
+// API key is automatically loaded from process.env.DEDALUS_API_KEY
+const client = new Dedalus();
+```
+
+```typescript Explicit API key
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  apiKey: 'your_api_key_here',
+});
+```
+
+</CodeGroup>
+
+## Choose your environment
+
+The SDK supports two environments: production and development.
+
+<CodeGroup>
+
+```typescript Production (default)
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  environment: 'production', // https://api.dedaluslabs.ai
+});
+```
+
+```typescript Development
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  environment: 'development', // http://localhost:8080
+});
+```
+
+```typescript Custom base URL
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus({
+  baseURL: 'https://custom-api.example.com',
+});
+```
+
+</CodeGroup>
+
+<Note>
+You cannot specify both `baseURL` and `environment` options. If you need to use a custom URL, set `baseURL` and omit the `environment` option.
+</Note>
+
+## TypeScript configuration
+
+The SDK requires TypeScript 4.9 or higher. Make sure your `tsconfig.json` includes:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true
+  }
+}
+```
+
+## Verify installation
+
+Test that everything is working correctly:
+
+```typescript test.ts
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+console.log('Dedalus SDK installed successfully!');
+```
+
+Run the file:
+
+<CodeGroup>
+
+```bash Node.js
+node test.js
+```
+
+```bash TypeScript (ts-node)
+ts-node test.ts
+```
+
+```bash Bun
+bun run test.ts
+```
+
+```bash Deno
+deno run test.ts
+```
+
+</CodeGroup>
+
+## Next steps
+
+<Card
+  title="Quickstart guide"
+  icon="rocket"
+  href="/quickstart"
+>
+  Create your first chat completion with a working code example
+</Card>

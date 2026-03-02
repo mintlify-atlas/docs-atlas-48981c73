@@ -1,0 +1,367 @@
+---
+title: MCP Server Integration
+description: Connect your AI applications to Dedalus using the Model Context Protocol
+---
+
+The Dedalus MCP (Model Context Protocol) server provides a standardized way to expose Dedalus API functionality as tools that can be used by AI applications like Claude Desktop, Cursor, VS Code, and other MCP-compatible clients.
+
+## Installation
+
+### Quick Start with npx
+
+The fastest way to get started is using `npx`:
+
+```bash
+export DEDALUS_API_KEY="your-api-key"
+npx -y dedalus-labs-mcp@latest
+```
+
+### Client Configuration
+
+For most MCP clients, you'll need to add configuration to their settings. Here's a typical configuration:
+
+```json
+{
+  "mcpServers": {
+    "dedalus_labs_api": {
+      "command": "npx",
+      "args": ["-y", "dedalus-labs-mcp", "--client=claude", "--tools=all"],
+      "env": {
+        "DEDALUS_API_KEY": "your-api-key",
+        "DEDALUS_ENVIRONMENT": "production"
+      }
+    }
+  }
+}
+```
+
+### Cursor Setup
+
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en-US/install-mcp?name=dedalus-labs-mcp)
+
+Click the button above or manually configure in Cursor Settings > Tools & MCP > New MCP Server.
+
+### VS Code Setup
+
+Open the Command Palette and select "MCP: Open User Configuration", then add the server configuration.
+
+### Claude Code Setup
+
+Run this command in your terminal:
+
+```bash
+claude mcp add --transport stdio dedalus_labs_api \
+  --env DEDALUS_API_KEY="your-api-key" \
+  -- npx -y dedalus-labs-mcp
+```
+
+## Tool Exposure Modes
+
+The MCP server supports three different modes for exposing API functionality:
+
+### 1. Explicit Tools (Default)
+
+Exposes one tool per API endpoint. This provides the most accurate schema information but can be overwhelming for large APIs.
+
+```bash
+npx -y dedalus-labs-mcp --tools=all
+```
+
+### 2. Dynamic Tools
+
+Exposes three meta-tools that allow the AI to discover and invoke endpoints dynamically:
+
+- `list_api_endpoints` - Discovers available endpoints with optional filtering
+- `get_api_endpoint_schema` - Gets detailed schema for a specific endpoint
+- `invoke_api_endpoint` - Executes any endpoint with the appropriate parameters
+
+```bash
+npx -y dedalus-labs-mcp --tools=dynamic
+```
+
+This mode keeps the context window smaller while maintaining access to all endpoints.
+
+### 3. Code Execution Mode
+
+Exposes two tools for more complex workflows:
+
+- `search_docs` - Searches the API documentation
+- `execute` - Runs TypeScript code against the Dedalus client
+
+```bash
+npx -y dedalus-labs-mcp --tools=code
+```
+
+Code execution runs in a secure Deno sandbox with network access limited to the Dedalus API.
+
+## Filtering Tools
+
+For large APIs, you can filter which tools are exposed:
+
+### By Resource
+
+```bash
+# Include specific resources
+npx -y dedalus-labs-mcp --resource=models --resource=chat.completions
+
+# Use wildcards
+npx -y dedalus-labs-mcp --resource="chat.*"
+```
+
+### By Operation Type
+
+```bash
+# Only read operations (get/list)
+npx -y dedalus-labs-mcp --operation=read
+
+# Only write operations (create/update/delete)
+npx -y dedalus-labs-mcp --operation=write
+```
+
+### By Tool Name
+
+```bash
+# Include specific tools
+npx -y dedalus-labs-mcp --tool=create_chat_completions --tool=list_models
+
+# Exclude specific tools
+npx -y dedalus-labs-mcp --resource=models --no-tool=delete_models
+```
+
+### List Available Tools
+
+```bash
+npx -y dedalus-labs-mcp --list
+```
+
+## Client Compatibility
+
+Different MCP clients have varying capabilities. Configure for your client:
+
+```bash
+# Preset configurations
+npx -y dedalus-labs-mcp --client=claude
+npx -y dedalus-labs-mcp --client=cursor
+npx -y dedalus-labs-mcp --client=openai-agents
+```
+
+Supported clients:
+- `claude` - Claude Desktop and Claude Code
+- `cursor` - Cursor IDE
+- `openai-agents` - OpenAI Agents API
+- `claude-code` - Claude Code specifically
+
+### Custom Capabilities
+
+Override specific capabilities:
+
+```bash
+npx -y dedalus-labs-mcp \
+  --capability=top-level-unions \
+  --capability=tool-name-length=40 \
+  --capability=valid-json
+```
+
+Available capabilities:
+- `top-level-unions` - Support for top-level unions in schemas
+- `valid-json` - Enable JSON string parsing for arguments
+- `refs` - Support for $ref pointers in schemas
+- `unions` - Support for union types (anyOf)
+- `formats` - Support for format validations (e.g., date-time, email)
+- `tool-name-length=N` - Maximum tool name length
+
+## Remote MCP Server
+
+Run the MCP server as a remote HTTP service:
+
+```bash
+npx -y dedalus-labs-mcp --transport=http --port=3000
+```
+
+### Authorization
+
+Provide authorization via headers:
+
+```json
+{
+  "mcpServers": {
+    "dedalus_labs_api": {
+      "url": "http://localhost:3000",
+      "headers": {
+        "Authorization": "Bearer your-api-key"
+      }
+    }
+  }
+}
+```
+
+Supported authorization headers:
+- `Authorization: Bearer <token>`
+- `x-dedalus-api-key: <key>`
+- `x-api-key: <key>`
+
+### Query Parameters
+
+Filtering options can be passed as URL query parameters:
+
+```
+http://localhost:3000?resource=models&resource=chat.completions&operation=read
+http://localhost:3000?client=cursor&capability=tool-name-length%3D40
+```
+
+### Unix Socket
+
+```bash
+npx -y dedalus-labs-mcp --transport=http --socket=/tmp/dedalus-mcp.sock
+```
+
+## Programmatic Usage
+
+Import and customize the server in your own code:
+
+```typescript
+import { server, endpoints, initMcpServer } from 'dedalus-labs-mcp/server';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+// Initialize with default endpoints
+initMcpServer({ server });
+
+// Start the server
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+### Custom Endpoints
+
+```typescript
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { initMcpServer } from 'dedalus-labs-mcp/server';
+import retrieveModels from 'dedalus-labs-mcp/tools/models/retrieve-models';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod';
+
+const myServer = new McpServer(
+  { name: 'my-custom-server', version: '1.0.0' },
+  { capabilities: { tools: {} } }
+);
+
+const customEndpoint = {
+  tool: {
+    name: 'my_custom_tool',
+    description: 'My custom tool description',
+    inputSchema: zodToJsonSchema(z.object({
+      query: z.string().describe('Search query')
+    }))
+  },
+  handler: async (client, args) => {
+    // Your custom logic here
+    return { result: 'Success', data: args.query };
+  }
+};
+
+// Initialize with custom endpoints
+initMcpServer({
+  server: myServer,
+  endpoints: [retrieveModels, customEndpoint]
+});
+```
+
+### Custom Client Options
+
+```typescript
+import { initMcpServer } from 'dedalus-labs-mcp/server';
+import { server } from 'dedalus-labs-mcp/server';
+
+initMcpServer({
+  server,
+  clientOptions: {
+    apiKey: 'your-api-key',
+    environment: 'development',
+    timeout: 30000,
+    maxRetries: 3,
+    logLevel: 'debug'
+  },
+  mcpOptions: {
+    includeDocsTools: true,
+    includeDynamicTools: true,
+    client: 'cursor'
+  }
+});
+```
+
+## Available Tools
+
+The MCP server exposes the following API resources:
+
+### Models
+- `retrieve_models` - Get details about a specific model
+- `list_models` - List all available models
+
+### Chat Completions
+- `create_chat_completions` - Create a chat completion with support for streaming, tools, and multi-model handoffs
+
+### Embeddings
+- `create_embeddings` - Generate embeddings for text
+
+### Audio
+- `create_audio_speech` - Generate speech from text
+- `create_audio_transcriptions` - Transcribe audio to text
+- `create_audio_translations` - Translate audio to English text
+
+### Images
+- `generate_images` - Generate images from text prompts
+- `edit_images` - Edit images using inpainting
+- `create_variation_images` - Create variations of an image
+
+## Environment Variables
+
+Required:
+- `DEDALUS_API_KEY` - Your Dedalus API key
+
+Optional:
+- `DEDALUS_ENVIRONMENT` - Environment (production, development)
+- `DEDALUS_BASE_URL` - Custom API base URL
+- `DEDALUS_X_API_KEY` - Alternative API key header
+- `DEDALUS_ORG_ID` - Organization ID
+- `DEDALUS_PROVIDER` - Provider name
+- `DEDALUS_PROVIDER_KEY` - Provider-specific key
+- `DEDALUS_PROVIDER_MODEL` - Default provider model
+- `DEDALUS_LOG` - Log level (debug, info, warn, error, off)
+
+## Troubleshooting
+
+### Server Not Starting
+
+1. Verify your API key is set:
+```bash
+echo $DEDALUS_API_KEY
+```
+
+2. Check the server logs:
+```bash
+DEDALUS_LOG=debug npx -y dedalus-labs-mcp
+```
+
+### No Tools Available
+
+If your filters are too restrictive:
+```bash
+# List all available tools
+npx -y dedalus-labs-mcp --list
+
+# Use --tools=all to include everything
+npx -y dedalus-labs-mcp --tools=all
+```
+
+### Client Connection Issues
+
+Ensure your client configuration matches the transport:
+- For stdio: Use `command` and `args`
+- For HTTP: Use `url` and `headers`
+
+### Tool Schema Errors
+
+Some clients have limitations. Try:
+```bash
+npx -y dedalus-labs-mcp --client=your-client-name
+```

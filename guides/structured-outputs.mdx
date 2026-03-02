@@ -1,0 +1,452 @@
+---
+title: 'Structured Outputs'
+description: 'Generate JSON responses with guaranteed schema compliance using response_format'
+icon: 'brackets-curly'
+---
+
+## Overview
+
+Structured Outputs ensure that model responses strictly adhere to a predefined JSON schema. This is essential for building reliable integrations where you need consistent, parseable data structures.
+
+## Response Format Types
+
+The Dedalus SDK supports three response format types:
+
+- `text` - Free-form text response (default)
+- `json_object` - Freeform JSON object
+- `json_schema` - JSON response conforming to a specific schema
+
+## Basic JSON Object
+
+Request a JSON response without a specific schema:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { 
+      role: 'user', 
+      content: 'Extract the name and email from: John Doe (john@example.com)' 
+    },
+  ],
+  response_format: { type: 'json_object' },
+});
+
+const data = JSON.parse(completion.choices[0].message.content);
+console.log(data); // { "name": "John Doe", "email": "john@example.com" }
+```
+
+<Note>
+When using `json_object`, you should include the word "JSON" in your prompt to guide the model.
+</Note>
+
+## JSON Schema
+
+Define a strict schema that the model must follow:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { role: 'user', content: 'Extract user info from: Jane Smith, age 28, email jane@example.com' },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'user_info',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+          email: { type: 'string', format: 'email' },
+        },
+        required: ['name', 'age', 'email'],
+        additionalProperties: false,
+      },
+    },
+  },
+});
+
+const userData = JSON.parse(completion.choices[0].message.content);
+console.log(userData);
+// { "name": "Jane Smith", "age": 28, "email": "jane@example.com" }
+```
+
+## TypeScript Types
+
+You can define TypeScript interfaces and use them with structured outputs:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+interface Product {
+  name: string;
+  price: number;
+  category: string;
+  inStock: boolean;
+  tags: string[];
+}
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { 
+      role: 'user', 
+      content: 'Extract product info: MacBook Pro, $1999, Electronics, Available, [laptop, computer, apple]' 
+    },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'product_extraction',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          price: { type: 'number' },
+          category: { type: 'string' },
+          inStock: { type: 'boolean' },
+          tags: { 
+            type: 'array',
+            items: { type: 'string' }
+          },
+        },
+        required: ['name', 'price', 'category', 'inStock', 'tags'],
+        additionalProperties: false,
+      },
+    },
+  },
+});
+
+const product: Product = JSON.parse(completion.choices[0].message.content);
+console.log(product.name, product.price);
+```
+
+## Complex Nested Schemas
+
+Define complex nested object structures:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { 
+      role: 'user', 
+      content: 'Create a sample order for customer John Doe with 2 items' 
+    },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'order',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          orderId: { type: 'string' },
+          customer: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              email: { type: 'string' },
+            },
+            required: ['name', 'email'],
+            additionalProperties: false,
+          },
+          items: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                productId: { type: 'string' },
+                quantity: { type: 'number' },
+                price: { type: 'number' },
+              },
+              required: ['productId', 'quantity', 'price'],
+              additionalProperties: false,
+            },
+          },
+          totalAmount: { type: 'number' },
+        },
+        required: ['orderId', 'customer', 'items', 'totalAmount'],
+        additionalProperties: false,
+      },
+    },
+  },
+});
+
+const order = JSON.parse(completion.choices[0].message.content);
+console.log(order);
+```
+
+## Using Zod for Schema Validation
+
+Combine structured outputs with Zod for runtime validation:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+
+// Define Zod schema
+const UserSchema = z.object({
+  name: z.string(),
+  age: z.number().min(0).max(120),
+  email: z.string().email(),
+  preferences: z.object({
+    newsletter: z.boolean(),
+    notifications: z.boolean(),
+  }),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { role: 'user', content: 'Create a user profile for Alice, 25 years old' },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'user_profile',
+      strict: true,
+      schema: zodToJsonSchema(UserSchema),
+    },
+  },
+});
+
+const rawData = JSON.parse(completion.choices[0].message.content);
+
+// Validate with Zod
+const user = UserSchema.parse(rawData);
+console.log(user);
+```
+
+## Enum Values
+
+Constrain string values to specific options:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { role: 'user', content: 'Classify the sentiment of: I love this product!' },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'sentiment_analysis',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          sentiment: {
+            type: 'string',
+            enum: ['positive', 'negative', 'neutral'],
+          },
+          confidence: {
+            type: 'number',
+            minimum: 0,
+            maximum: 1,
+          },
+        },
+        required: ['sentiment', 'confidence'],
+        additionalProperties: false,
+      },
+    },
+  },
+});
+
+const result = JSON.parse(completion.choices[0].message.content);
+console.log(result); // { "sentiment": "positive", "confidence": 0.95 }
+```
+
+## Array Responses
+
+Generate arrays of structured objects:
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  messages: [
+    { role: 'user', content: 'Generate 3 sample blog post ideas about AI' },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'blog_ideas',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          posts: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                tags: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+              },
+              required: ['title', 'description', 'tags'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['posts'],
+        additionalProperties: false,
+      },
+    },
+  },
+});
+
+const ideas = JSON.parse(completion.choices[0].message.content);
+console.log(ideas.posts);
+```
+
+## Streaming with Structured Outputs
+
+<Warning>
+Structured outputs work with streaming, but you'll need to accumulate the chunks and parse the complete JSON at the end.
+</Warning>
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-5-nano',
+  stream: true,
+  messages: [
+    { role: 'user', content: 'Generate user data for Bob' },
+  ],
+  response_format: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'user',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+        additionalProperties: false,
+      },
+    },
+  },
+});
+
+let content = '';
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    content += delta;
+  }
+}
+
+const userData = JSON.parse(content);
+console.log(userData);
+```
+
+## Error Handling
+
+```typescript
+import Dedalus from 'dedalus-labs';
+
+const client = new Dedalus();
+
+try {
+  const completion = await client.chat.completions.create({
+    model: 'openai/gpt-5-nano',
+    messages: [{ role: 'user', content: 'Extract data' }],
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'data',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            value: { type: 'string' },
+          },
+          required: ['value'],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+
+  const data = JSON.parse(completion.choices[0].message.content);
+  console.log(data);
+} catch (error) {
+  if (error instanceof Dedalus.APIError) {
+    console.error('API Error:', error.status, error.message);
+  } else if (error instanceof SyntaxError) {
+    console.error('Invalid JSON response:', error.message);
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use strict mode">
+    Always set `strict: true` in your JSON schema to ensure exact compliance.
+  </Step>
+  
+  <Step title="Set additionalProperties to false">
+    Prevent unexpected fields by setting `additionalProperties: false` in your schema.
+  </Step>
+  
+  <Step title="Provide clear prompts">
+    Give clear instructions about what data to extract or generate.
+  </Step>
+  
+  <Step title="Validate responses">
+    Always validate and handle potential JSON parsing errors.
+  </Step>
+  
+  <Step title="Use appropriate models">
+    Not all models support structured outputs equally well. Use newer models for best results.
+  </Step>
+</Steps>
+
+<Note>
+Structured outputs work best with models that support function calling and JSON mode. Check the model's capabilities before use.
+</Note>

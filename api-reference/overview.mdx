@@ -1,0 +1,192 @@
+---
+title: 'API Reference Overview'
+description: 'Complete reference for the Dedalus TypeScript SDK'
+---
+
+## Introduction
+
+The Dedalus TypeScript SDK provides a comprehensive interface for interacting with the Dedalus API. It offers OpenAI-compatible methods with additional features for multi-model routing, server-side tool execution, and advanced agent orchestration.
+
+## Installation
+
+```bash
+npm install dedalus
+```
+
+## Quick Start
+
+```typescript
+import Dedalus from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+});
+
+const completion = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
+```
+
+## Core Features
+
+### Multi-Model Support
+
+Dedalus supports multiple AI providers and models. You can specify models using provider-prefixed IDs:
+
+- `openai/gpt-4`
+- `anthropic/claude-3-5-sonnet`
+- `google/gemini-pro`
+
+### OpenAI Compatibility
+
+The SDK maintains full compatibility with OpenAI's API while providing additional Dedalus-specific features:
+
+- Server-side tool execution
+- Multi-model routing
+- MCP (Model Context Protocol) server integration
+- Advanced agent attributes
+
+## Main Resources
+
+### Chat Completions
+
+Generate conversational responses with support for:
+- Text generation
+- Streaming responses
+- Function/tool calling
+- Multi-turn conversations
+
+[View Chat Completions Documentation →](/api-reference/chat/completions)
+
+### Models
+
+List and retrieve information about available models:
+
+```typescript
+const models = await client.models.list();
+const model = await client.models.retrieve('openai/gpt-4');
+```
+
+### Embeddings
+
+Generate vector embeddings for text:
+
+```typescript
+const embedding = await client.embeddings.create({
+  model: 'openai/text-embedding-3-small',
+  input: 'Your text here',
+});
+```
+
+### Images
+
+Generate, edit, and create variations of images:
+
+```typescript
+const image = await client.images.generate({
+  model: 'openai/dall-e-3',
+  prompt: 'A beautiful sunset',
+});
+```
+
+### Audio
+
+Convert text to speech and transcribe audio:
+
+```typescript
+// Text to speech
+const speech = await client.audio.speech.create({
+  model: 'openai/tts-1',
+  voice: 'alloy',
+  input: 'Hello world',
+});
+
+// Transcription
+const transcription = await client.audio.transcriptions.create({
+  file: audioFile,
+  model: 'openai/whisper-1',
+});
+```
+
+## Error Handling
+
+The SDK provides typed error classes for different scenarios:
+
+```typescript
+import { 
+  DedalusError,
+  APIError,
+  AuthenticationError,
+  RateLimitError 
+} from 'dedalus';
+
+try {
+  const completion = await client.chat.completions.create(params);
+} catch (error) {
+  if (error instanceof AuthenticationError) {
+    console.error('Invalid API key');
+  } else if (error instanceof RateLimitError) {
+    console.error('Rate limit exceeded');
+  } else if (error instanceof APIError) {
+    console.error('API error:', error.message);
+  }
+}
+```
+
+## Advanced Features
+
+### DedalusRunner
+
+For advanced agent workflows with automatic tool execution:
+
+```typescript
+import { DedalusRunner } from 'dedalus';
+
+const runner = new DedalusRunner(client);
+const result = await runner.run({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Search the web for news' }],
+  tools: [...],
+  automatic_tool_execution: true,
+});
+```
+
+### Streaming Utilities
+
+Helper functions for working with streams:
+
+```typescript
+import { streamAsync, streamSync } from 'dedalus';
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [...],
+  stream: true,
+});
+
+for await (const chunk of streamAsync(stream)) {
+  console.log(chunk.choices[0]?.delta?.content);
+}
+```
+
+## TypeScript Support
+
+The SDK is written in TypeScript and provides full type definitions for all methods and responses. Enable strict type checking for the best development experience.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chat Completions" icon="message" href="/api-reference/chat/completions">
+    Learn about generating chat completions
+  </Card>
+  <Card title="Streaming" icon="stream" href="/api-reference/chat/streaming">
+    Implement streaming responses
+  </Card>
+  <Card title="Tool Calling" icon="wrench" href="/api-reference/chat/tool-calling">
+    Use function and tool calling
+  </Card>
+  <Card title="Models" icon="brain" href="/api-reference/models/list">
+    Explore available models
+  </Card>
+</CardGroup>

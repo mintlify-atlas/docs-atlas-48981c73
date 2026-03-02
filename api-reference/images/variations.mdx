@@ -1,0 +1,129 @@
+---
+title: 'Create Image Variation'
+api: 'POST /v1/images/variations'
+---
+
+Creates variations of a given image. DALL-E 2 only.
+
+## Method
+
+```typescript
+client.images.createVariation(params)
+```
+
+## Request Parameters
+
+<ParamField body="image" type="File" required>
+  The image to use as the basis for the variation(s). Must be a valid PNG file, less than 4MB, and square.
+</ParamField>
+
+<ParamField body="model" type="string">
+  The model to use for image variation generation. Currently only `openai/dall-e-2` is supported.
+</ParamField>
+
+<ParamField body="n" type="number">
+  The number of images to generate. Must be between 1 and 10.
+  
+  Default: `1`
+</ParamField>
+
+<ParamField body="size" type="string">
+  The size of the generated images. Must be one of `256x256`, `512x512`, or `1024x1024`.
+  
+  Default: `1024x1024`
+</ParamField>
+
+<ParamField body="response_format" type="string">
+  The format in which the generated images are returned:
+  - `url` - URLs valid for 60 minutes
+  - `b64_json` - Base64-encoded JSON
+  
+  Default: `url`
+</ParamField>
+
+<ParamField body="user" type="string">
+  A unique identifier representing your end-user, which can help OpenAI monitor and detect abuse.
+</ParamField>
+
+## Response
+
+<ResponseField name="created" type="number" required>
+  Unix timestamp when images were created.
+</ResponseField>
+
+<ResponseField name="data" type="array" required>
+  List of generated images.
+  
+  <Expandable title="Image Object">
+    <ResponseField name="url" type="string">
+      URL of the generated image (if `response_format=url`).
+    </ResponseField>
+    
+    <ResponseField name="b64_json" type="string">
+      Base64-encoded image data (if `response_format=b64_json`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```typescript Basic Variation
+import fs from "fs";
+
+const variation = await client.images.createVariation({
+  image: fs.createReadStream("original.png"),
+  model: "openai/dall-e-2"
+});
+
+console.log(variation.data[0].url);
+```
+
+```typescript Multiple Variations
+const variations = await client.images.createVariation({
+  image: fs.createReadStream("artwork.png"),
+  model: "openai/dall-e-2",
+  n: 5,
+  size: "512x512"
+});
+
+variations.data.forEach((img, i) => {
+  console.log(`Variation ${i + 1}: ${img.url}`);
+});
+```
+
+```typescript Large High-Quality Variation
+const variation = await client.images.createVariation({
+  image: fs.createReadStream("reference.png"),
+  model: "openai/dall-e-2",
+  size: "1024x1024",
+  n: 1
+});
+
+console.log(variation.data[0].url);
+```
+
+```typescript Save as Base64
+const variation = await client.images.createVariation({
+  image: fs.createReadStream("photo.png"),
+  model: "openai/dall-e-2",
+  response_format: "b64_json"
+});
+
+const buffer = Buffer.from(variation.data[0].b64_json, 'base64');
+await fs.promises.writeFile("variation.png", buffer);
+```
+
+```typescript With User Tracking
+const variation = await client.images.createVariation({
+  image: fs.createReadStream("input.png"),
+  model: "openai/dall-e-2",
+  n: 2,
+  user: "user-12345"
+});
+
+console.log(`Generated ${variation.data.length} variations`);
+```
+
+</CodeGroup>

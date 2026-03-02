@@ -1,0 +1,412 @@
+---
+title: 'Streaming Chat Completions'
+description: 'Stream chat completion responses in real-time'
+---
+
+## Overview
+
+Streaming allows you to receive chat completion responses incrementally as they are generated, rather than waiting for the entire response. This provides a better user experience for long responses and enables real-time UI updates.
+
+## Basic Streaming
+
+Enable streaming by setting `stream: true` in your request:
+
+```typescript
+import Dedalus from 'dedalus';
+
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+});
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { role: 'user', content: 'Write a story about a robot.' }
+  ],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  const content = chunk.choices[0]?.delta?.content;
+  if (content) {
+    process.stdout.write(content);
+  }
+}
+```
+
+## Stream Chunk Format
+
+Each chunk in the stream is a `StreamChunk` object with the following structure:
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the completion (same across all chunks).
+</ResponseField>
+
+<ResponseField name="object" type="string" required>
+  Object type, always `'chat.completion.chunk'`.
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+  Unix timestamp when the chunk was created.
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  Model used for the completion.
+</ResponseField>
+
+<ResponseField name="choices" type="Array<ChunkChoice>" required>
+  Array of streaming choice chunks. Each contains:
+  - `index` (number) - Choice index
+  - `delta` (ChoiceDelta) - Incremental content update
+  - `finish_reason` (string | null) - Reason for stopping (only in final chunk)
+  - `logprobs` (ChoiceLogprobs | null) - Log probability information
+</ResponseField>
+
+<ResponseField name="usage" type="CompletionUsage | null">
+  Token usage statistics. Only included in the final chunk when `stream_options.include_usage: true`.
+</ResponseField>
+
+### Delta Object
+
+The `delta` object contains incremental updates:
+
+```typescript
+interface ChoiceDelta {
+  role?: 'assistant' | 'user' | 'system' | 'developer' | 'tool';
+  content?: string | null;
+  tool_calls?: Array<ChoiceDeltaToolCall> | null;
+  function_call?: ChoiceDeltaFunctionCall | null;
+  refusal?: string | null;
+}
+```
+
+## Using Stream Utilities
+
+Dedalus provides helper functions for working with streams:
+
+### streamAsync
+
+Async iterator for streaming responses:
+
+```typescript
+import { streamAsync } from 'dedalus';
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: true,
+});
+
+for await (const chunk of streamAsync(stream)) {
+  console.log(chunk.choices[0]?.delta?.content || '');
+}
+```
+
+### streamSync
+
+Synchronous stream processing:
+
+```typescript
+import { streamSync } from 'dedalus';
+
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: true,
+});
+
+streamSync(stream, (chunk) => {
+  const content = chunk.choices[0]?.delta?.content;
+  if (content) {
+    process.stdout.write(content);
+  }
+});
+```
+
+## Stream Options
+
+Control streaming behavior with `stream_options`:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'Hello!' }],
+  stream: true,
+  stream_options: {
+    include_usage: true, // Include usage stats in final chunk
+  },
+});
+```
+
+<ParamField path="stream_options.include_usage" type="boolean" default="false">
+  When `true`, the final chunk includes token usage statistics in the `usage` field.
+</ParamField>
+
+## Complete Examples
+
+### Building Complete Response
+
+Accumulate the full response from chunks:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [
+    { role: 'user', content: 'Explain quantum computing.' }
+  ],
+  stream: true,
+});
+
+let fullContent = '';
+
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta?.content;
+  if (delta) {
+    fullContent += delta;
+    process.stdout.write(delta);
+  }
+}
+
+console.log('\n\nComplete response:', fullContent);
+```
+
+### Handling Tool Calls in Streams
+
+When streaming with tool calls, accumulate the tool call deltas:
+
+```typescript
+const stream = await client.chat.completions.create({
+  model: 'openai/gpt-4',
+  messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: 'get_weather',
+        description: 'Get the weather for a location',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: { type: 'string' }
+          },
+          required: ['location']
+        }
+      }
+    }
+  ],
+  stream: true,
+});
+
+const toolCalls: Record<number, any> = {};
+
+for await (const chunk of stream) {
+  const delta = chunk.choices[0]?.delta;
+  
+  if (delta?.tool_calls) {
+    for (const toolCall of delta.tool_calls) {
+      const index = toolCall.index;
+      
+      if (!toolCalls[index]) {
+        toolCalls[index] = {
+          id: toolCall.id || '',
+          type: toolCall.type || 'function',
+          function: {
+            name: toolCall.function?.name || '',
+            arguments: toolCall.function?.arguments || ''
+          }
+        };
+      } else {
+        if (toolCall.function?.arguments) {
+          toolCalls[index].function.arguments += toolCall.function.arguments;
+        }
+      }
+    }
+  }
+}
+
+console.log('Tool calls:', Object.values(toolCalls));
+```
+
+### React Component Example
+
+Integrate streaming into a React application:
+
+```typescript
+import { useState } from 'react';
+import Dedalus from 'dedalus';
+
+function ChatComponent() {
+  const [response, setResponse] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = async (message: string) => {
+    setIsLoading(true);
+    setResponse('');
+
+    const client = new Dedalus({
+      apiKey: process.env.NEXT_PUBLIC_DEDALUS_API_KEY,
+    });
+
+    const stream = await client.chat.completions.create({
+      model: 'openai/gpt-4',
+      messages: [{ role: 'user', content: message }],
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        setResponse((prev) => prev + content);
+      }
+    }
+
+    setIsLoading(false);
+  };
+
+  return (
+    <div>
+      <button onClick={() => sendMessage('Hello!')} disabled={isLoading}>
+        Send Message
+      </button>
+      <div>{response}</div>
+    </div>
+  );
+}
+```
+
+### Node.js Server with Server-Sent Events
+
+Implement SSE streaming in an Express server:
+
+```typescript
+import express from 'express';
+import Dedalus from 'dedalus';
+
+const app = express();
+const client = new Dedalus({
+  apiKey: process.env.DEDALUS_API_KEY,
+});
+
+app.get('/chat', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const stream = await client.chat.completions.create({
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: req.query.message as string }],
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    }
+  }
+
+  res.write('data: [DONE]\n\n');
+  res.end();
+});
+
+app.listen(3000);
+```
+
+## Finish Reasons
+
+The `finish_reason` field appears in the final chunk and indicates why generation stopped:
+
+- `'stop'` - Natural stop point or stop sequence reached
+- `'length'` - Maximum token limit reached
+- `'tool_calls'` - Model called a tool
+- `'content_filter'` - Content filtered due to safety
+- `'function_call'` - Model called a function (deprecated)
+
+```typescript
+for await (const chunk of stream) {
+  const choice = chunk.choices[0];
+  
+  if (choice?.finish_reason) {
+    console.log('Generation finished:', choice.finish_reason);
+  }
+}
+```
+
+## Error Handling
+
+Handle errors during streaming:
+
+```typescript
+import { APIError } from 'dedalus';
+
+try {
+  const stream = await client.chat.completions.create({
+    model: 'openai/gpt-4',
+    messages: [{ role: 'user', content: 'Hello!' }],
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const content = chunk.choices[0]?.delta?.content;
+    if (content) {
+      process.stdout.write(content);
+    }
+  }
+} catch (error) {
+  if (error instanceof APIError) {
+    console.error('Streaming error:', error.message);
+  }
+}
+```
+
+## TypeScript Types
+
+Key types for streaming:
+
+```typescript
+import type {
+  StreamChunk,
+  ChunkChoice,
+  ChoiceDelta,
+  ChoiceDeltaToolCall,
+  CompletionUsage,
+} from 'dedalus';
+
+// Stream response
+type StreamResponse = Stream<StreamChunk>;
+
+// Processing a chunk
+function processChunk(chunk: StreamChunk) {
+  const choice: ChunkChoice = chunk.choices[0];
+  const delta: ChoiceDelta = choice.delta;
+  // ...
+}
+```
+
+## Best Practices
+
+1. **Always handle errors** - Wrap streaming in try/catch blocks
+2. **Buffer carefully** - Accumulate content efficiently to avoid memory issues
+3. **Show loading states** - Indicate when streaming is in progress
+4. **Handle finish reasons** - Check why generation stopped
+5. **Include usage stats** - Set `stream_options.include_usage: true` for token tracking
+6. **Clean up resources** - Ensure streams are properly closed on unmount/cleanup
+
+## Performance Considerations
+
+- Streaming reduces time-to-first-token significantly
+- Users can see progress immediately
+- Better for long-form content generation
+- Network overhead is slightly higher due to multiple chunks
+- Consider implementing request cancellation for user-initiated stops
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chat Completions" icon="message" href="/api-reference/chat/completions">
+    Learn about non-streaming completions
+  </Card>
+  <Card title="Tool Calling" icon="wrench" href="/api-reference/chat/tool-calling">
+    Implement function and tool calling
+  </Card>
+</CardGroup>
